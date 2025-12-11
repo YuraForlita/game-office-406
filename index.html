@@ -1,1106 +1,829 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Office Mayhem: Багатокористувацький Шутер</title>
     <script src="https://cdn.tailwindcss.com"></script>
+
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { 
-    getAuth,
-    onAuthStateChanged,
-    GoogleAuthProvider,
-    signInWithPopup,
-    signOut,
-    signInAnonymously
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { 
-    getFirestore,
-    doc,
-    getDoc,
-    setDoc,
-    setLogLevel
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // --- Firebase імпорти ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+        getAuth,
+        onAuthStateChanged,
+        GoogleAuthProvider,
+        signInWithPopup,
+        signOut,
+        signInAnonymously
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+        getFirestore,
+        doc,
+        getDoc,
+        setDoc,
+        updateDoc,
+        onSnapshot,
+        collection,
+        addDoc,
+        deleteDoc
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- Глобальні Firebase змінні ---
-let app, db, auth;
-let userId = null;
-let userName = "AnonymousPlayer";
-let userProfileRef = null;
+    // --- Глобальні змінні (Firebase + гра) ---
+    let app, db, auth;
+    let userId = null;
+    let userName = "AnonymousPlayer";
+    let userProfileRef = null;
+    let playerRef = null;
+    let roomRef = null;
+    let gameRoomId = null;
+    let isHost = false;
 
-// --- Чистий Firebase Config без Canvas ---
-const firebaseConfig = {
-    apiKey: "AIzaSyAqOKy-am1nyiavsIiknhZh2Vyq0crGYHA",
-    authDomain: "game-office-406.firebaseapp.com",
-    projectId: "game-office-406",
-    storageBucket: "game-office-406.appspot.com",   // <-- Виправлено
-    messagingSenderId: "662530550810",
-    appId: "1:662530550810:web:753eccc327843761c035a3",
-    measurementId: "G-LYPY42C873"
-};
+    // Ігрові константи
+    const GRID_SIZE = 5;
+    const TILE_SIZE = 100;
+    const PLAYER_SIZE = 30;
+    const BULLET_SPEED = 10;
+    const PLAYER_SPEED = 5;
+    const MAX_HP = 100;
+    const GAME_DURATION_SECONDS = 90;
+    let timeRemaining = GAME_DURATION_SECONDS;
 
-// --- Ініціалізація Firebase ---
-const initializeFirebase = async () => {
-    try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-        setLogLevel("error");
+    // Ігровий стан
+    let players = {};
+    let bullets = [];
+    let coins = [
+        { id: 'coin1', x: 0.5, y: 0.5, collected: false },
+        { id: 'coin2', x: 4.5, y: 0.5, collected: false },
+        { id: 'coin3', x: 0.5, y: 4.5, collected: false },
+        { id: 'coin4', x: 4.5, y: 4.5, collected: false }
+    ];
+    const obstacles = [
+        { x: 1, y: 1, type: 'table' },
+        { x: 3, y: 1, type: 'table' },
+        { x: 1, y: 3, type: 'table' },
+        { x: 3, y: 3, type: 'table' }
+    ];
 
-        // Входимо анонімно, якщо користувач не увійшов
-        await signInAnonymously(auth);
+    const inputState = { up:false, down:false, left:false, right:false };
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
+    // Canvas / рендер
+    let canvas, ctx;
+    let lastUpdateTime = 0;
+    const FPS = 60;
+    const FRAME_TIME = 1000 / FPS;
 
-                // Тепер профілі будуть зберігатися в:
-                // users/{userId}/profile/data
-                userProfileRef = doc(db, "users", userId, "profile", "data");
+    // --- Firebase конфіг (залишай свої ключі тут) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyAqOKy-am1nyiavsIiknhZh2Vyq0crGYHA",
+        authDomain: "game-office-406.firebaseapp.com",
+        projectId: "game-office-406",
+        storageBucket: "game-office-406.appspot.com", // виправлено
+        messagingSenderId: "662530550810",
+        appId: "1:662530550810:web:753eccc327843761c035a3",
+        measurementId: "G-LYPY42C873"
+    };
 
-                document.getElementById("user-id-display").textContent = `ID: ${userId}`;
-                document.getElementById("auth-status").textContent = `Увійшов як: ${user.email || "Гість"}`;
-                document.getElementById("auth-status").classList.add("text-green-400");
-                document.getElementById("auth-status").classList.remove("text-red-400");
+    // --- Ініціалізація Firebase ---
+    const initializeFirebase = async () => {
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
 
-                document.getElementById("auth-controls").classList.add("hidden");
-                document.getElementById("logout-btn").classList.remove("hidden");
+            // Спробуємо анонімний вхід (юзер отримає uid)
+            await signInAnonymously(auth);
 
-                await loadOrCreateUserProfile(user.displayName);
-                document.getElementById("game-status").textContent = "Авторизація успішна. Готовність до гри.";
-            } else {
-                userId = null;
-                userName = "AnonymousPlayer";
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    userProfileRef = doc(db, "users", userId, "profile", "data");
+                    document.getElementById("user-id-display").textContent = `ID: ${userId}`;
+                    document.getElementById("user-id-display").classList.remove("hidden");
+                    document.getElementById("auth-status").textContent = `Увійшов як: ${user.email || "Гість"}`;
+                    document.getElementById("auth-status").classList.remove("text-red-400");
+                    document.getElementById("auth-status").classList.add("text-green-400");
+                    document.getElementById("game-status").textContent = "Авторизація успішна. Готовність до гри.";
+                    document.getElementById("auth-controls").classList.add("hidden");
+                    document.getElementById("logout-btn").classList.remove("hidden");
 
-                document.getElementById("auth-status").textContent = "Не увійшов.";
-                document.getElementById("auth-status").classList.add("text-red-400");
-                document.getElementById("auth-status").classList.remove("text-green-400");
-
-                document.getElementById("auth-controls").classList.remove("hidden");
-                document.getElementById("logout-btn").classList.add("hidden");
-
-                document.getElementById("user-name-input").value = userName;
-                document.getElementById("game-status").textContent = "Очікування входу.";
-
-                resetGameUI?.();
-            }
-        });
-
-    } catch (error) {
-        console.error("Помилка ініціалізації Firebase:", error);
-        document.getElementById("game-status").textContent = `Помилка ініціалізації: ${error.message}`;
-    }
-};
-
-// --- Створення / завантаження профілю ---
-const loadOrCreateUserProfile = async (googleName) => {
-    if (!userId || !userProfileRef) return;
-
-    const snap = await getDoc(userProfileRef);
-
-    if (snap.exists()) {
-        const data = snap.data();
-        userName = data.name || googleName || `Player${Math.floor(Math.random() * 900) + 100}`;
-    } else {
-        userName = googleName || `Player${Math.floor(Math.random() * 900) + 100}`;
-        await setDoc(userProfileRef, {
-            name: userName,
-            createdAt: Date.now(),
-            highScore: 0,
-        });
-    }
-
-    document.getElementById("user-name-input").value = userName;
-};
-
-// --- Вхід через Google ---
-const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-        await signInWithPopup(auth, provider);
-    } catch (error) {
-        console.error("Google login error:", error);
-        document.getElementById("game-status").textContent =
-            `Помилка входу: ${error.message}`;
-    }
-};
-
-// --- Вихід ---
-const logoutUser = async () => {
-    await signOut(auth);
-};
-
-        const handleSignOut = async () => {
-             try {
-                await signOut(auth);
-                // onAuthStateChanged обробить оновлення UI
-             } catch (error) {
-                console.error("Помилка виходу:", error);
-                document.getElementById('game-status').textContent = `Помилка виходу: ${error.message}`;
-             }
-        };
-
-        // --- Логіка Кімнати та Гравця (без змін, окрім перевірки userId) ---
-
-        const createGame = async () => {
-            if (!userId) {
-                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб створити гру.";
-                 return;
-            }
-
-            const newRoomId = crypto.randomUUID().substring(0, 8);
-            gameRoomId = newRoomId;
-            isHost = true;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId);
-            playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', userId);
-
-            const initialPlayerState = {
-                id: userId,
-                name: userName,
-                x: 1 * TILE_SIZE + TILE_SIZE / 2,
-                y: 1 * TILE_SIZE + TILE_SIZE / 2,
-                hp: MAX_HP,
-                score: 0,
-                color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-                lastShot: Date.now(),
-                isAlive: true,
-                isReady: false
-            };
-
-            const initialRoomState = {
-                hostId: userId,
-                gameState: 'lobby',
-                coins: coins,
-                bullets: [],
-                timer: GAME_DURATION_SECONDS,
-                lastBulletId: 0,
-                updatedAt: Date.now()
-            };
-
-            await setDoc(roomRef, initialRoomState);
-            await setDoc(playerRef, initialPlayerState);
-
-            document.getElementById('room-id-display').textContent = gameRoomId;
-            document.getElementById('start-game-btn').classList.remove('hidden');
-            document.getElementById('leave-game-btn').classList.remove('hidden');
-            document.getElementById('game-controls').classList.remove('hidden');
-            document.getElementById('lobby-controls').classList.add('hidden');
-            document.getElementById('name-entry').classList.add('hidden');
-            document.getElementById('game-status').textContent = `Створено кімнату: ${gameRoomId}. Ви - хост.`;
-
-            listenToRoom();
-        };
-
-        const joinGame = async () => {
-            if (!userId) {
-                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб приєднатися до гри.";
-                 return;
-            }
-            const joinId = document.getElementById('join-room-id').value.trim();
-            if (joinId.length !== 8) {
-                document.getElementById('game-status').textContent = "ID кімнати має бути 8 символів.";
-                return;
-            }
-            gameRoomId = joinId;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId);
-            playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', userId);
-
-            const roomSnap = await getDoc(roomRef);
-            if (!roomSnap.exists()) {
-                document.getElementById('game-status').textContent = "Кімната не знайдена або не існує.";
-                gameRoomId = null;
-                return;
-            }
-
-            const roomData = roomSnap.data();
-            if (roomData.gameState !== 'lobby') {
-                 document.getElementById('game-status').textContent = "Гра вже розпочата в цій кімнаті.";
-                 gameRoomId = null;
-                 return;
-            }
-
-            isHost = roomData.hostId === userId;
-
-            const initialPlayerState = {
-                id: userId,
-                name: userName,
-                x: 3 * TILE_SIZE + TILE_SIZE / 2,
-                y: 3 * TILE_SIZE + TILE_SIZE / 2,
-                hp: MAX_HP,
-                score: 0,
-                color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-                lastShot: Date.now(),
-                isAlive: true,
-                isReady: false
-            };
-
-            await setDoc(playerRef, initialPlayerState);
-
-            document.getElementById('room-id-display').textContent = gameRoomId;
-            document.getElementById('start-game-btn').classList.toggle('hidden', !isHost);
-            document.getElementById('leave-game-btn').classList.remove('hidden');
-            document.getElementById('game-controls').classList.remove('hidden');
-            document.getElementById('lobby-controls').classList.add('hidden');
-            document.getElementById('name-entry').classList.add('hidden');
-            document.getElementById('game-status').textContent = `Ви приєдналися до кімнати: ${gameRoomId}.`;
-
-            listenToRoom();
-        };
-
-        const leaveGame = async () => {
-            if (gameRoomId && userId) {
-                // Видалити гравця
-                await setDoc(playerRef, { isAlive: false, left: true }, { merge: true });
-            }
-            resetGameUI();
-        };
-
-        const resetGameUI = () => {
-            gameRoomId = null;
-            isHost = false;
-            playerRef = null;
-            roomRef = null;
-            players = {};
-            gameState = 'lobby';
-            bullets = [];
-            timeRemaining = GAME_DURATION_SECONDS;
-
-            document.getElementById('room-id-display').textContent = '—';
-            document.getElementById('start-game-btn').classList.add('hidden');
-            document.getElementById('leave-game-btn').classList.add('hidden');
-            document.getElementById('game-controls').classList.add('hidden');
-            document.getElementById('lobby-controls').classList.remove('hidden');
-            // document.getElementById('name-entry').classList.remove('hidden'); // Залишаємо прихованим, якщо користувач увійшов
-            document.getElementById('leaderboard').innerHTML = '';
-            document.getElementById('timer-display').textContent = '01:30';
-            document.getElementById('ready-toggle-btn').textContent = 'Готовий (Немає)';
-
-            // Припинити слухання
-            if (typeof stopListeningPlayers === 'function') stopListeningPlayers();
-            if (typeof stopListeningRoom === 'function') stopListeningRoom();
-
-            draw();
-        };
-
-        // Слухачі змін у Firestore (логіка без змін)
-        let stopListeningPlayers = () => {};
-        let stopListeningRoom = () => {};
-
-        const listenToRoom = () => {
-            if (!gameRoomId) return;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-            stopListeningRoom = onSnapshot(roomRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const roomData = docSnap.data();
-
-                    if (roomData.gameState === 'playing' && gameState !== 'playing' && isHost) {
-                        startGameTimer();
-                    }
-
-                    gameState = roomData.gameState;
-                    coins = roomData.coins || coins;
-                    bullets = roomData.bullets || [];
-                    timeRemaining = roomData.timer || GAME_DURATION_SECONDS;
-
-                    if (gameState === 'finished') {
-                        document.getElementById('game-status').textContent = 'Гра завершена! Перегляньте результати.';
-                        clearInterval(gameTimerInterval);
-                        // Оновлення high score після завершення
-                        updateHighScore();
-                    }
-
-                    const minutes = Math.floor(timeRemaining / 60);
-                    const seconds = timeRemaining % 60;
-                    document.getElementById('timer-display').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    // Завантажити або створити профіль:
+                    await loadOrCreateUserProfile(user.displayName);
                 } else {
-                    document.getElementById('game-status').textContent = "Кімната гри була видалена.";
+                    // Вийшов
+                    userId = null;
+                    userName = "AnonymousPlayer";
+                    document.getElementById("auth-status").textContent = "Не увійшов.";
+                    document.getElementById("auth-status").classList.remove("text-green-400");
+                    document.getElementById("auth-status").classList.add("text-red-400");
+                    document.getElementById("auth-controls").classList.remove("hidden");
+                    document.getElementById("logout-btn").classList.add("hidden");
+                    document.getElementById("user-name-input").value = userName;
+                    document.getElementById("game-status").textContent = "Очікування входу.";
                     resetGameUI();
                 }
             });
+        } catch (error) {
+            console.error("Помилка ініціалізації Firebase:", error);
+            document.getElementById("game-status").textContent = `Помилка ініціалізації: ${error.message}`;
+        }
+    };
 
-            const playersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players');
-            stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    const player = change.doc.data();
-                    if (player.left) {
-                        delete players[player.id];
-                    } else {
-                        players[player.id] = player;
-                    }
+    // --- Профілі ---
+    const loadOrCreateUserProfile = async (googleName) => {
+        if (!userId || !userProfileRef) return;
+        try {
+            const snap = await getDoc(userProfileRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                userName = data.name || googleName || `Player${Math.floor(Math.random()*900)+100}`;
+            } else {
+                userName = googleName || `Player${Math.floor(Math.random()*900)+100}`;
+                await setDoc(userProfileRef, {
+                    name: userName,
+                    createdAt: Date.now(),
+                    highScore: 0
                 });
-                updateLeaderboard();
-                draw();
-                if (isHost && gameState === 'lobby') {
-                    checkAllReady();
+            }
+            document.getElementById("user-name-input").value = userName;
+        } catch (e) {
+            console.error("Помилка профілю:", e);
+        }
+    };
+
+    // --- Авторизація Google ---
+    const signInWithGoogle = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            await signInWithPopup(auth, provider);
+        } catch (e) {
+            console.error("Google sign-in error:", e);
+            document.getElementById("game-status").textContent = `Помилка входу: ${e.message}`;
+        }
+    };
+
+    const handleSignOut = async () => {
+        try {
+            if (auth) await signOut(auth);
+        } catch (e) {
+            console.error("Помилка виходу:", e);
+            document.getElementById("game-status").textContent = `Помилка виходу: ${e.message}`;
+        }
+    };
+
+    // --- Кімната / гравець ---
+    const createGame = async () => {
+        if (!userId) { document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб створити гру."; return; }
+        gameRoomId = crypto.randomUUID().substring(0,8);
+        isHost = true;
+
+        roomRef = doc(db, 'rooms', gameRoomId); // простіший шлях
+        playerRef = doc(db, 'rooms', gameRoomId, 'players', userId);
+
+        const initialPlayerState = {
+            id: userId,
+            name: userName,
+            x: 1 * TILE_SIZE + TILE_SIZE / 2,
+            y: 1 * TILE_SIZE + TILE_SIZE / 2,
+            hp: MAX_HP,
+            score: 0,
+            color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+            lastShot: Date.now(),
+            isAlive: true,
+            isReady: false
+        };
+
+        const initialRoomState = {
+            hostId: userId,
+            gameState: 'lobby',
+            coins,
+            bullets: [],
+            timer: GAME_DURATION_SECONDS,
+            lastBulletId: 0,
+            updatedAt: Date.now()
+        };
+
+        await setDoc(roomRef, initialRoomState);
+        await setDoc(playerRef, initialPlayerState);
+
+        document.getElementById('room-id-display').textContent = gameRoomId;
+        document.getElementById('start-game-btn').classList.remove('hidden');
+        document.getElementById('leave-game-btn').classList.remove('hidden');
+        document.getElementById('game-controls').classList.remove('hidden');
+        document.getElementById('lobby-controls').classList.add('hidden');
+        document.getElementById('name-entry').classList.add('hidden');
+        document.getElementById('game-status').textContent = `Створено кімнату: ${gameRoomId}. Ви - хост.`;
+
+        listenToRoom();
+        if (isHost) listenToBulletQueue();
+    };
+
+    const joinGame = async () => {
+        if (!userId) { document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб приєднатися до гри."; return; }
+        const joinId = document.getElementById('join-room-id').value.trim();
+        if (joinId.length !== 8) { document.getElementById('game-status').textContent = "ID кімнати має бути 8 символів."; return; }
+
+        gameRoomId = joinId;
+        roomRef = doc(db, 'rooms', gameRoomId);
+        playerRef = doc(db, 'rooms', gameRoomId, 'players', userId);
+
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists()) { document.getElementById('game-status').textContent = "Кімната не знайдена або не існує."; gameRoomId = null; return; }
+        const roomData = roomSnap.data();
+        if (roomData.gameState !== 'lobby') { document.getElementById('game-status').textContent = "Гра вже розпочата в цій кімнаті."; gameRoomId = null; return; }
+
+        isHost = roomData.hostId === userId;
+
+        const initialPlayerState = {
+            id: userId,
+            name: userName,
+            x: 3 * TILE_SIZE + TILE_SIZE / 2,
+            y: 3 * TILE_SIZE + TILE_SIZE / 2,
+            hp: MAX_HP,
+            score: 0,
+            color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+            lastShot: Date.now(),
+            isAlive: true,
+            isReady: false
+        };
+
+        await setDoc(playerRef, initialPlayerState);
+
+        document.getElementById('room-id-display').textContent = gameRoomId;
+        document.getElementById('start-game-btn').classList.toggle('hidden', !isHost);
+        document.getElementById('leave-game-btn').classList.remove('hidden');
+        document.getElementById('game-controls').classList.remove('hidden');
+        document.getElementById('lobby-controls').classList.add('hidden');
+        document.getElementById('name-entry').classList.add('hidden');
+        document.getElementById('game-status').textContent = `Ви приєдналися до кімнати: ${gameRoomId}.`;
+
+        listenToRoom();
+    };
+
+    const leaveGame = async () => {
+        if (gameRoomId && userId && playerRef) {
+            await updateDoc(playerRef, { isAlive: false, left: true, updatedAt: Date.now() });
+        }
+        resetGameUI();
+    };
+
+    const resetGameUI = () => {
+        gameRoomId = null;
+        isHost = false;
+        playerRef = null;
+        roomRef = null;
+        players = {};
+        bullets = [];
+        timeRemaining = GAME_DURATION_SECONDS;
+
+        document.getElementById('room-id-display').textContent = '—';
+        document.getElementById('start-game-btn').classList.add('hidden');
+        document.getElementById('leave-game-btn').classList.add('hidden');
+        document.getElementById('game-controls').classList.add('hidden');
+        document.getElementById('lobby-controls').classList.remove('hidden');
+        document.getElementById('leaderboard').innerHTML = '';
+        document.getElementById('timer-display').textContent = '01:30';
+        document.getElementById('ready-toggle-btn').textContent = 'Готовий (Немає)';
+
+        draw();
+    };
+
+    // --- Слухачі Firestore ---
+    let stopListeningPlayers = () => {};
+    let stopListeningRoom = () => {};
+
+    const listenToRoom = () => {
+        if (!gameRoomId) return;
+        stopListeningRoom = onSnapshot(roomRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const roomData = docSnap.data();
+                if (roomData.gameState === 'playing' && isHost) {
+                    // host може стартувати таймер
+                    startGameTimer();
                 }
-            });
-        };
 
-        // --- Нова функція: Оновлення постійного High Score ---
-        const updateHighScore = async () => {
-             const myPlayer = players[userId];
-             if (!myPlayer || !userProfileRef) return;
+                // Оновлення стану з кімнати
+                // якщо хост надсилає coins/bullets/timer
+                if (roomData.coins) coins = roomData.coins;
+                bullets = roomData.bullets || bullets;
+                timeRemaining = roomData.timer || timeRemaining;
+                gameState = roomData.gameState || 'lobby';
 
-             const currentScore = myPlayer.score;
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                document.getElementById('timer-display').textContent = `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
 
-             const profileSnap = await getDoc(userProfileRef);
-             if (profileSnap.exists()) {
-                 const currentHighScore = profileSnap.data().highScore || 0;
-                 if (currentScore > currentHighScore) {
-                     await updateDoc(userProfileRef, {
-                         highScore: currentScore,
-                         lastPlayed: Date.now()
-                     });
-                     console.log(`Оновлено High Score: ${currentScore}`);
-                     document.getElementById('game-status').textContent = `Гра завершена! Новий High Score: ${currentScore}!`;
-                 }
-             }
-        };
-
-        // --- Функції керування та гри (без змін) ---
-        const checkAllReady = () => {
-            const allPlayers = Object.values(players);
-            const readyPlayers = allPlayers.filter(p => p.isReady).length;
-            const totalPlayers = allPlayers.length;
-
-            if (totalPlayers >= 2 && readyPlayers === totalPlayers) {
-                document.getElementById('start-game-btn').disabled = false;
-                document.getElementById('start-game-btn').textContent = "РОЗПОЧАТИ БІЙ";
-            } else {
-                document.getElementById('start-game-btn').disabled = true;
-                document.getElementById('start-game-btn').textContent = `Готові: ${readyPlayers}/${totalPlayers} (Потрібно ≥2)`;
-            }
-        };
-
-        const toggleReady = async () => {
-            if (!playerRef || !userId) return;
-            const myPlayer = players[userId];
-            if (myPlayer) {
-                const newReadyState = !myPlayer.isReady;
-                await updateDoc(playerRef, { isReady: newReadyState });
-                document.getElementById('ready-toggle-btn').textContent = newReadyState ? 'Готовий (ТАК)' : 'Готовий (Немає)';
-            }
-        };
-
-
-        const startGame = async () => {
-            if (!isHost || gameState !== 'lobby') return;
-
-            const allPlayers = Object.values(players);
-            if (allPlayers.length < 2 || allPlayers.some(p => !p.isReady)) {
-                document.getElementById('game-status').textContent = "Не всі гравці готові або недостатньо гравців (потрібно ≥2).";
-                return;
-            }
-
-            await updateDoc(roomRef, {
-                gameState: 'playing',
-                updatedAt: Date.now()
-            });
-
-            startGameTimer();
-            gameLoop();
-        };
-
-        let gameTimerInterval;
-        const startGameTimer = () => {
-            if (gameTimerInterval) clearInterval(gameTimerInterval);
-            let startTime = Date.now();
-
-            gameTimerInterval = setInterval(async () => {
-                const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                let newTimeRemaining = GAME_DURATION_SECONDS - elapsed;
-
-                if (newTimeRemaining <= 0) {
-                    newTimeRemaining = 0;
+                if (gameState === 'finished') {
+                    document.getElementById('game-status').textContent = 'Гра завершена! Перегляньте результати.';
                     clearInterval(gameTimerInterval);
-                    await updateDoc(roomRef, { gameState: 'finished', timer: 0, updatedAt: Date.now() });
+                    updateHighScore();
                 }
-
-                if (newTimeRemaining > 0) {
-                    await updateDoc(roomRef, { timer: newTimeRemaining, updatedAt: Date.now() });
-                }
-            }, 1000);
-        };
-
-        //... [updatePlayerPosition, updateBullets, handleHit, collectCoin, fireBullet, listenToBulletQueue, gameLoop, draw - залишаються без змін]
-
-        const updatePlayerPosition = (delta) => {
-            const player = players[userId];
-            if (!player || gameState !== 'playing' || !player.isAlive) return;
-
-            let newX = player.x;
-            let newY = player.y;
-
-            // Розрахунок руху
-            if (inputState.up) newY -= PLAYER_SPEED * delta;
-            if (inputState.down) newY += PLAYER_SPEED * delta;
-            if (inputState.left) newX -= PLAYER_SPEED * delta;
-            if (inputState.right) newX += PLAYER_SPEED * delta;
-
-            const halfSize = PLAYER_SIZE / 2;
-
-            // Обмеження поля (стінки)
-            newX = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newX));
-            newY = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newY));
-
-            // Перевірка на зіткнення з перешкодами
-            let collided = false;
-            for (const obstacle of obstacles) {
-                const ox = obstacle.x * TILE_SIZE + TILE_SIZE / 2;
-                const oy = obstacle.y * TILE_SIZE + TILE_SIZE / 2;
-                const o_half_size = TILE_SIZE / 2;
-
-                if (
-                    newX + halfSize > ox - o_half_size &&
-                    newX - halfSize < ox + o_half_size &&
-                    newY + halfSize > oy - o_half_size &&
-                    newY - halfSize < oy + o_half_size
-                ) {
-                    collided = true;
-                    let testX = player.x;
-                    let testY = newY;
-                    let blockedY = false;
-                    for (const o of obstacles) {
-                         const ox_test = o.x * TILE_SIZE + TILE_SIZE / 2;
-                         const oy_test = o.y * TILE_SIZE + TILE_SIZE / 2;
-                         if (testX + halfSize > ox_test - o_half_size && testX - halfSize < ox_test + o_half_size && testY + halfSize > oy_test - o_half_size && testY - halfSize < oy_test + o_half_size) {
-                             blockedY = true;
-                             break;
-                         }
-                    }
-
-                    if (!blockedY) {
-                        newX = player.x;
-                        newY = testY;
-                        collided = false;
-                        break;
-                    }
-
-                    let testX2 = newX;
-                    let testY2 = player.y;
-                    let blockedX = false;
-                    for (const o of obstacles) {
-                         const ox_test = o.x * TILE_SIZE + TILE_SIZE / 2;
-                         const oy_test = o.y * TILE_SIZE + TILE_SIZE / 2;
-                         if (testX2 + halfSize > ox_test - o_half_size && testX2 - halfSize < ox_test + o_half_size && testY2 + halfSize > oy_test - o_half_size && testY2 - halfSize < oy_test + o_half_size) {
-                             blockedX = true;
-                             break;
-                         }
-                    }
-
-                    if (!blockedX) {
-                        newX = testX2;
-                        newY = player.y;
-                        collided = false;
-                        break;
-                    }
-
-                    newX = player.x;
-                    newY = player.y;
-                }
-            }
-
-
-            // Перевірка на зіткнення з монетами
-            for (const coin of coins) {
-                if (coin.collected) continue;
-
-                const coinX = coin.x * TILE_SIZE;
-                const coinY = coin.y * TILE_SIZE;
-
-                if (
-                    newX + halfSize > coinX - 10 &&
-                    newX - halfSize < coinX + 10 &&
-                    newY + halfSize > coinY - 10 &&
-                    newY - halfSize < coinY + 10
-                ) {
-                    if (isHost) {
-                        collectCoin(coin.id, userId);
-                    }
-                }
-            }
-
-            if (newX !== player.x || newY !== player.y) {
-                updateDoc(playerRef, {
-                    x: newX,
-                    y: newY,
-                    updatedAt: Date.now()
-                }).catch(e => console.error("Помилка оновлення позиції:", e));
-            }
-        };
-
-        const updateBullets = () => {
-            if (!isHost || gameState !== 'playing') return;
-
-            const newBullets = [];
-            let hitPlayers = false;
-
-            for (const bullet of bullets) {
-                if (!bullet.isAlive) continue;
-
-                bullet.x += bullet.vx;
-                bullet.y += bullet.vy;
-
-                // Перевірка зіткнення зі стінами
-                if (
-                    bullet.x < 0 || bullet.x > GRID_SIZE * TILE_SIZE ||
-                    bullet.y < 0 || bullet.y > GRID_SIZE * TILE_SIZE
-                ) {
-                    bullet.isAlive = false;
-                    continue;
-                }
-
-                // Перевірка зіткнення з перешкодами
-                let hitObstacle = false;
-                for (const obstacle of obstacles) {
-                    const ox = obstacle.x * TILE_SIZE + TILE_SIZE / 2;
-                    const oy = obstacle.y * TILE_SIZE + TILE_SIZE / 2;
-                    const o_half_size = TILE_SIZE / 2;
-
-                    if (
-                        bullet.x > ox - o_half_size && bullet.x < ox + o_half_size &&
-                        bullet.y > oy - o_half_size && bullet.y < oy + o_half_size
-                    ) {
-                        bullet.isAlive = false;
-                        hitObstacle = true;
-                        break;
-                    }
-                }
-                if (hitObstacle) continue;
-
-                // Перевірка зіткнення з гравцями
-                for (const id in players) {
-                    const target = players[id];
-                    if (target.id === bullet.shooterId || !target.isAlive) continue;
-
-                    const dist = Math.sqrt(
-                        (bullet.x - target.x) ** 2 + (bullet.y - target.y) ** 2
-                    );
-
-                    if (dist < PLAYER_SIZE / 2 + 5) {
-                        bullet.isAlive = false;
-                        hitPlayers = true;
-
-                        handleHit(target.id, bullet.shooterId);
-                        break;
-                    }
-                }
-
-                if (bullet.isAlive) {
-                    newBullets.push(bullet);
-                }
-            }
-
-            if (bullets.length !== newBullets.length || hitPlayers) {
-                updateDoc(roomRef, {
-                    bullets: newBullets.map(b => ({
-                        x: b.x, y: b.y, vx: b.vx, vy: b.vy, shooterId: b.shooterId, id: b.id
-                    })),
-                    lastBulletId: bullets.reduce((max, b) => Math.max(max, b.id || 0), 0) + 1,
-                    updatedAt: Date.now()
-                }).catch(e => console.error("Помилка оновлення куль:", e));
-
-            }
-        };
-
-        const handleHit = async (targetId, shooterId) => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const targetRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', targetId);
-            const shooterRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', shooterId);
-
-            const targetSnap = await getDoc(targetRef);
-            if (!targetSnap.exists()) return;
-
-            const target = targetSnap.data();
-            if (!target.isAlive) return;
-
-            let newHp = target.hp - 10;
-            let newIsAlive = true;
-            let scoreChange = 0;
-
-            if (newHp <= 0) {
-                newHp = 0;
-                newIsAlive = false;
-                scoreChange = 10;
-                setTimeout(async () => {
-                    await updateDoc(targetRef, {
-                        hp: MAX_HP,
-                        isAlive: true,
-                        x: 1 * TILE_SIZE + TILE_SIZE / 2,
-                        y: 1 * TILE_SIZE + TILE_SIZE / 2
-                    });
-                }, 3000);
             } else {
-                scoreChange = 1;
+                document.getElementById('game-status').textContent = "Кімната гри була видалена.";
+                resetGameUI();
             }
+        });
 
-            await updateDoc(targetRef, {
-                hp: newHp,
-                isAlive: newIsAlive,
-                updatedAt: Date.now()
+        const playersColRef = collection(db, 'rooms', gameRoomId, 'players');
+        stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const player = change.doc.data();
+                if (player.left) {
+                    delete players[player.id];
+                } else {
+                    players[player.id] = player;
+                }
             });
-
-            await updateDoc(shooterRef, {
-                score: (players[shooterId].score || 0) + scoreChange,
-                updatedAt: Date.now()
-            });
-        };
-
-        const collectCoin = async (coinId, collectorId) => {
-             if (!isHost || gameState !== 'playing') return;
-
-             const coinIndex = coins.findIndex(c => c.id === coinId);
-             if (coinIndex === -1 || coins[coinIndex].collected) return;
-
-             coins[coinIndex].collected = true;
-
-             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-             const collectorRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', collectorId);
-             await updateDoc(collectorRef, {
-                 score: (players[collectorId].score || 0) + 5,
-                 updatedAt: Date.now()
-             });
-
-             await updateDoc(roomRef, {
-                 coins: coins,
-                 updatedAt: Date.now()
-             });
-
-             setTimeout(async () => {
-                 if (isHost && gameRoomId) {
-                      coins[coinIndex].collected = false;
-                      await updateDoc(roomRef, {
-                          coins: coins,
-                          updatedAt: Date.now()
-                      });
-                 }
-             }, 5000);
-        };
-
-
-        const fireBullet = (targetX, targetY) => {
-            const player = players[userId];
-            if (!player || gameState !== 'playing' || !player.isAlive) return;
-
-            const now = Date.now();
-            if (now - player.lastShot < 300) return;
-
-            const dx = targetX - player.x;
-            const dy = targetY - player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            const vx = (dx / dist) * BULLET_SPEED;
-            const vy = (dy / dist) * BULLET_SPEED;
-
-            const newBullet = {
-                x: player.x,
-                y: player.y,
-                vx: vx,
-                vy: vy,
-                shooterId: userId,
-                id: (isHost ? bullets.length : 0) + Math.random()
-            };
-
-            bullets.push(newBullet);
-
-            updateDoc(playerRef, {
-                lastShot: now,
-                updatedAt: Date.now()
-            }).catch(e => console.error("Помилка оновлення останнього пострілу:", e));
-
-            if (!isHost) {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const bulletQueueRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'bullet_queue');
-                addDoc(bulletQueueRef, newBullet).catch(e => console.error("Помилка додавання кулі в чергу:", e));
-            }
-        };
-
-        const listenToBulletQueue = () => {
-             if (!isHost || !gameRoomId) return;
-             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-             const bulletQueueRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'bullet_queue');
-
-             onSnapshot(bulletQueueRef, (snapshot) => {
-                 snapshot.docChanges().forEach((change) => {
-                     if (change.type === "added") {
-                         const bulletData = change.doc.data();
-                         bullets.push({ ...bulletData, isAlive: true });
-                         deleteDoc(change.doc.ref).catch(e => console.error("Помилка видалення кулі з черги:", e));
-                     }
-                 });
-             });
-        };
-
-        const gameLoop = () => {
-            if (gameState !== 'playing') return;
-
-            const now = Date.now();
-            const delta = (now - lastUpdateTime) / FRAME_TIME;
-            lastUpdateTime = now;
-
-            updatePlayerPosition(delta);
-
-            if (isHost) {
-                 updateBullets();
-            }
-
+            updateLeaderboard();
             draw();
+        });
+    };
 
-            requestAnimationFrame(gameLoop);
+    // --- High score оновлення ---
+    const updateHighScore = async () => {
+        if (!userId || !userProfileRef) return;
+        const myPlayer = players[userId];
+        if (!myPlayer) return;
+
+        try {
+            const profileSnap = await getDoc(userProfileRef);
+            if (profileSnap.exists()) {
+                const currentHigh = profileSnap.data().highScore || 0;
+                if (myPlayer.score > currentHigh) {
+                    await updateDoc(userProfileRef, { highScore: myPlayer.score, lastPlayed: Date.now() });
+                    document.getElementById('game-status').textContent = `Гра завершена! Новий High Score: ${myPlayer.score}!`;
+                }
+            }
+        } catch (e) { console.error("Highscore error:", e); }
+    };
+
+    // --- Ігрова логіка (рух/куля/удар) ---
+    const updatePlayerPosition = (delta) => {
+        if (!userId) return;
+        const player = players[userId];
+        if (!player || player.isAlive === false) return;
+
+        // аспекти руху - delta в одиницях FRAME_TIME
+        let newX = player.x, newY = player.y;
+        if (inputState.up) newY -= PLAYER_SPEED * delta;
+        if (inputState.down) newY += PLAYER_SPEED * delta;
+        if (inputState.left) newX -= PLAYER_SPEED * delta;
+        if (inputState.right) newX += PLAYER_SPEED * delta;
+
+        const halfSize = PLAYER_SIZE / 2;
+        newX = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newX));
+        newY = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newY));
+
+        // Просте зіткнення з перешкодами (відкат)
+        for (const obstacle of obstacles) {
+            const ox = obstacle.x * TILE_SIZE + TILE_SIZE/2;
+            const oy = obstacle.y * TILE_SIZE + TILE_SIZE/2;
+            const o_half = TILE_SIZE/2;
+
+            if (
+                newX + halfSize > ox - o_half &&
+                newX - halfSize < ox + o_half &&
+                newY + halfSize > oy - o_half &&
+                newY - halfSize < oy + o_half
+            ) {
+                // відкотити на попередню позицію
+                newX = player.x;
+                newY = player.y;
+                break;
+            }
+        }
+
+        // Перевірка колекції монет (host робить update)
+        for (const coin of coins) {
+            if (coin.collected) continue;
+            const coinX = coin.x * TILE_SIZE;
+            const coinY = coin.y * TILE_SIZE;
+            if (Math.abs(newX - coinX) < 20 && Math.abs(newY - coinY) < 20) {
+                if (isHost) collectCoin(coin.id, userId);
+            }
+        }
+
+        if (newX !== player.x || newY !== player.y) {
+            updateDoc(playerRef, { x: newX, y: newY, updatedAt: Date.now() }).catch(e => console.error("Помилка оновлення позиції:", e));
+        }
+    };
+
+    const handleHit = async (targetId, shooterId) => {
+        if (!roomRef) return;
+        const targetRef = doc(db, 'rooms', gameRoomId, 'players', targetId);
+        const shooterRef = doc(db, 'rooms', gameRoomId, 'players', shooterId);
+
+        const targetSnap = await getDoc(targetRef);
+        if (!targetSnap.exists()) return;
+        const target = targetSnap.data();
+        if (!target.isAlive) return;
+
+        let newHp = target.hp - 10;
+        let newIsAlive = true;
+        let scoreChange = 0;
+        if (newHp <= 0) {
+            newHp = 0;
+            newIsAlive = false;
+            scoreChange = 10;
+            setTimeout(async () => {
+                await updateDoc(targetRef, { hp: MAX_HP, isAlive: true, x: 1*TILE_SIZE + TILE_SIZE/2, y: 1*TILE_SIZE + TILE_SIZE/2, updatedAt: Date.now() });
+            }, 3000);
+        } else {
+            scoreChange = 1;
+        }
+
+        await updateDoc(targetRef, { hp: newHp, isAlive: newIsAlive, updatedAt: Date.now() });
+        await updateDoc(shooterRef, { score: (players[shooterId]?.score || 0) + scoreChange, updatedAt: Date.now() });
+    };
+
+    const collectCoin = async (coinId, collectorId) => {
+        if (!isHost) return;
+        const idx = coins.findIndex(c => c.id === coinId);
+        if (idx === -1 || coins[idx].collected) return;
+        coins[idx].collected = true;
+
+        const collectorRef = doc(db, 'rooms', gameRoomId, 'players', collectorId);
+        await updateDoc(collectorRef, { score: (players[collectorId]?.score || 0) + 5, updatedAt: Date.now() });
+        await updateDoc(roomRef, { coins, updatedAt: Date.now() });
+
+        // respawn coin after 5s
+        setTimeout(async () => {
+            if (isHost && gameRoomId) {
+                coins[idx].collected = false;
+                await updateDoc(roomRef, { coins, updatedAt: Date.now() });
+            }
+        }, 5000);
+    };
+
+    const fireBullet = (targetX, targetY) => {
+        const player = players[userId];
+        if (!player || !player.isAlive) return;
+        const now = Date.now();
+        if (now - (player.lastShot || 0) < 300) return;
+
+        const dx = targetX - player.x;
+        const dy = targetY - player.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const vx = (dx/dist) * BULLET_SPEED;
+        const vy = (dy/dist) * BULLET_SPEED;
+
+        const newBullet = {
+            x: player.x, y: player.y, vx, vy, shooterId: userId, id: Math.random().toString(36).substring(2,9), isAlive:true
         };
 
-        const draw = () => {
-            if (!ctx || !canvas) return;
+        bullets.push(newBullet);
+        updateDoc(playerRef, { lastShot: now, updatedAt: Date.now() }).catch(e => console.error(e));
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#1e1e1e';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (!isHost && gameRoomId) {
+            // push to queue (so host will process)
+            const bulletQueueRef = collection(db, 'rooms', gameRoomId, 'bullet_queue');
+            addDoc(bulletQueueRef, newBullet).catch(e => console.error("bullet queue add error:", e));
+        }
+    };
 
-            ctx.strokeStyle = '#333';
-            for (let i = 0; i <= GRID_SIZE; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * TILE_SIZE, 0);
-                ctx.lineTo(i * TILE_SIZE, GRID_SIZE * TILE_SIZE);
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.moveTo(0, i * TILE_SIZE);
-                ctx.lineTo(0, GRID_SIZE * TILE_SIZE);
-                ctx.stroke();
-            }
-
-            // Малювання перешкод
-            ctx.fillStyle = '#4a5568';
-            ctx.strokeStyle = '#cbd5e0';
-            obstacles.forEach(obstacle => {
-                const x = obstacle.x * TILE_SIZE;
-                const y = obstacle.y * TILE_SIZE;
-                ctx.fillRect(x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
-                ctx.strokeRect(x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
-            });
-
-            // Малювання монет
-            coins.forEach(coin => {
-                if (!coin.collected) {
-                    const x = coin.x * TILE_SIZE;
-                    const y = coin.y * TILE_SIZE;
-                    ctx.fillStyle = '#ffc107';
-                    ctx.beginPath();
-                    ctx.arc(x, y, 10, 0, Math.PI * 2);
-                    ctx.fill();
+    const listenToBulletQueue = () => {
+        if (!isHost || !gameRoomId) return;
+        const bulletQueueRef = collection(db, 'rooms', gameRoomId, 'bullet_queue');
+        onSnapshot(bulletQueueRef, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const b = change.doc.data();
+                    bullets.push({ ...b, isAlive:true });
+                    deleteDoc(change.doc.ref).catch(e => console.error("delete bullet doc error:", e));
                 }
             });
+        });
+    };
 
-            // Малювання гравців
+    const updateBullets = async () => {
+        if (!isHost) return;
+        const newBullets = [];
+        let hitPlayers = false;
+        for (const b of bullets) {
+            if (!b.isAlive) continue;
+            b.x += b.vx;
+            b.y += b.vy;
+
+            // walls
+            if (b.x < 0 || b.x > GRID_SIZE*TILE_SIZE || b.y < 0 || b.y > GRID_SIZE*TILE_SIZE) {
+                b.isAlive = false; continue;
+            }
+
+            // obstacle collision
+            let hitObstacle = false;
+            for (const obs of obstacles) {
+                const ox = obs.x * TILE_SIZE + TILE_SIZE/2;
+                const oy = obs.y * TILE_SIZE + TILE_SIZE/2;
+                const o_half = TILE_SIZE/2;
+                if (b.x > ox - o_half && b.x < ox + o_half && b.y > oy - o_half && b.y < oy + o_half) {
+                    b.isAlive = false;
+                    hitObstacle = true; break;
+                }
+            }
+            if (hitObstacle) continue;
+
+            // player hit
             for (const id in players) {
-                const player = players[id];
+                const t = players[id];
+                if (!t || !t.isAlive) continue;
+                if (t.id === b.shooterId) continue;
+                const dist = Math.hypot(b.x - t.x, b.y - t.y);
+                if (dist < PLAYER_SIZE/2 + 5) {
+                    b.isAlive = false;
+                    hitPlayers = true;
+                    handleHit(t.id, b.shooterId);
+                    break;
+                }
+            }
 
-                ctx.fillStyle = player.color;
+            if (b.isAlive) newBullets.push(b);
+        }
+
+        bullets = newBullets;
+        // записуємо кульки назад у кімнату (host authoritative)
+        await updateDoc(roomRef, {
+            bullets: bullets.map(b => ({ x:b.x,y:b.y,vx:b.vx,vy:b.vy,shooterId:b.shooterId, id:b.id })),
+            lastBulletId: (bullets.reduce((m,b)=>Math.max(m,b.id||0),0) || 0) + 1,
+            updatedAt: Date.now()
+        }).catch(e => console.error("Помилка оновлення куль:", e));
+    };
+
+    // --- Game loop / draw / HUD / leaderboard ---
+    let gameState = 'lobby';
+    let gameTimerInterval;
+
+    const startGame = async () => {
+        if (!isHost || gameState !== 'lobby') return;
+        const allPlayers = Object.values(players);
+        if (allPlayers.length < 2 || allPlayers.some(p => !p.isReady)) {
+            document.getElementById('game-status').textContent = "Не всі гравці готові або недостатньо гравців (потрібно ≥2).";
+            return;
+        }
+        await updateDoc(roomRef, { gameState: 'playing', updatedAt: Date.now() });
+        startGameTimer();
+        lastUpdateTime = Date.now();
+        requestAnimationFrame(gameLoop);
+    };
+
+    const startGameTimer = () => {
+        if (gameTimerInterval) clearInterval(gameTimerInterval);
+        const startTime = Date.now();
+        gameTimerInterval = setInterval(async () => {
+            const elapsed = Math.floor((Date.now() - startTime)/1000);
+            let newTimeRemaining = GAME_DURATION_SECONDS - elapsed;
+            if (newTimeRemaining <= 0) {
+                newTimeRemaining = 0;
+                clearInterval(gameTimerInterval);
+                await updateDoc(roomRef, { gameState: 'finished', timer: 0, updatedAt: Date.now() }).catch(()=>{});
+            } else {
+                await updateDoc(roomRef, { timer: newTimeRemaining, updatedAt: Date.now() }).catch(()=>{});
+            }
+        }, 1000);
+    };
+
+    const gameLoop = () => {
+        if (gameState !== 'playing') return;
+        const now = Date.now();
+        const delta = (now - lastUpdateTime) / FRAME_TIME;
+        lastUpdateTime = now;
+
+        updatePlayerPosition(delta);
+        if (isHost) updateBullets();
+        draw();
+
+        requestAnimationFrame(gameLoop);
+    };
+
+    const draw = () => {
+        if (!ctx || !canvas) return;
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = '#1e1e1e';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        ctx.strokeStyle = '#333';
+        for (let i=0;i<=GRID_SIZE;i++){
+            ctx.beginPath();
+            ctx.moveTo(i*TILE_SIZE,0); ctx.lineTo(i*TILE_SIZE,GRID_SIZE*TILE_SIZE); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0,i*TILE_SIZE); ctx.lineTo(GRID_SIZE*TILE_SIZE,i*TILE_SIZE); ctx.stroke();
+        }
+
+        // obstacles
+        ctx.fillStyle = '#4a5568';
+        ctx.strokeStyle = '#cbd5e0';
+        obstacles.forEach(o=>{
+            const x = o.x * TILE_SIZE;
+            const y = o.y * TILE_SIZE;
+            ctx.fillRect(x+5,y+5,TILE_SIZE-10,TILE_SIZE-10);
+            ctx.strokeRect(x+5,y+5,TILE_SIZE-10,TILE_SIZE-10);
+        });
+
+        // coins
+        coins.forEach(c=>{
+            if (!c.collected) {
+                const x = c.x * TILE_SIZE;
+                const y = c.y * TILE_SIZE;
+                ctx.fillStyle = '#ffc107';
                 ctx.beginPath();
-                ctx.arc(player.x, player.y, PLAYER_SIZE / 2, 0, Math.PI * 2);
+                ctx.arc(x,y,10,0,Math.PI*2);
                 ctx.fill();
-                ctx.strokeStyle = id === userId ? '#e53e3e' : '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '10px Inter';
-                ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x, player.y - PLAYER_SIZE / 2 - 5);
-
-                const hpBarWidth = PLAYER_SIZE;
-                const hpBarHeight = 4;
-                const hpBarX = player.x - hpBarWidth / 2;
-                const hpBarY = player.y + PLAYER_SIZE / 2 + 5;
-
-                ctx.fillStyle = '#555';
-                ctx.fillRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight);
-                const currentHpWidth = (player.hp / MAX_HP) * hpBarWidth;
-                ctx.fillStyle = player.hp > 25 ? '#48bb78' : '#e53e3e';
-                ctx.fillRect(hpBarX, hpBarY, currentHpWidth, hpBarHeight);
             }
+        });
 
-            // Малювання куль
-            ctx.fillStyle = '#f0f';
-            bullets.forEach(bullet => {
-                if (bullet.isAlive) {
-                    ctx.beginPath();
-                    ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            });
+        // players
+        for (const id in players) {
+            const p = players[id];
+            ctx.fillStyle = p.color || '#999';
+            ctx.beginPath();
+            ctx.arc(p.x,p.y,PLAYER_SIZE/2,0,Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = id === userId ? '#e53e3e' : '#ffffff';
+            ctx.lineWidth = 2; ctx.stroke();
 
-            // Оновлення HUD
-            const myPlayer = players[userId];
-            if (myPlayer) {
-                document.getElementById('my-hp').textContent = myPlayer.hp;
-                document.getElementById('my-score').textContent = myPlayer.score;
-                document.getElementById('my-hp-bar').style.width = `${(myPlayer.hp / MAX_HP) * 100}%`;
-                document.getElementById('my-hp-bar').style.backgroundColor = myPlayer.hp > 25 ? '#48bb78' : '#e53e3e';
+            ctx.fillStyle = '#ffffff'; ctx.font = '10px Inter'; ctx.textAlign='center';
+            ctx.fillText(p.name, p.x, p.y - PLAYER_SIZE/2 - 5);
+
+            const hpBarW = PLAYER_SIZE; const hpBarH = 4;
+            ctx.fillStyle = '#555';
+            ctx.fillRect(p.x - hpBarW/2, p.y + PLAYER_SIZE/2 + 5, hpBarW, hpBarH);
+            const curW = (p.hp / MAX_HP) * hpBarW;
+            ctx.fillStyle = p.hp > 25 ? '#48bb78' : '#e53e3e';
+            ctx.fillRect(p.x - hpBarW/2, p.y + PLAYER_SIZE/2 + 5, curW, hpBarH);
+        }
+
+        // bullets
+        ctx.fillStyle = '#f0f';
+        bullets.forEach(b=>{
+            if (b.isAlive) {
+                ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill();
             }
-        };
+        });
 
-        const updateLeaderboard = () => {
-            const board = document.getElementById('leaderboard');
-            board.innerHTML = '';
-            const sortedPlayers = Object.values(players)
-                .filter(p => !p.left)
-                .sort((a, b) => b.score - a.score);
+        // HUD updates
+        const myPlayer = players[userId];
+        if (myPlayer) {
+            document.getElementById('my-hp').textContent = myPlayer.hp;
+            document.getElementById('my-score').textContent = myPlayer.score;
+            document.getElementById('my-hp-bar').style.width = `${(myPlayer.hp / MAX_HP) * 100}%`;
+            document.getElementById('my-hp-bar').style.backgroundColor = myPlayer.hp > 25 ? '#48bb78' : '#e53e3e';
+        }
+    };
 
-            sortedPlayers.forEach(player => {
-                const isMe = player.id === userId;
-                const listItem = document.createElement('li');
-                listItem.className = `flex justify-between items-center p-2 rounded-lg text-sm transition-colors ${isMe ? 'bg-indigo-700 font-bold' : 'hover:bg-gray-700'}`;
-                listItem.innerHTML = `
-                    <div class="flex items-center space-x-2">
-                        <span class="w-2 h-2 rounded-full" style="background-color: ${player.color};"></span>
-                        <span class="${player.isAlive ? '' : 'line-through opacity-50'}">${player.name}</span>
-                        ${isMe ? '<span class="text-xs text-yellow-300">(Ви)</span>' : ''}
-                        ${player.isReady && gameState === 'lobby' ? '<span class="text-green-400 text-xs ml-2">Готовий</span>' : ''}
-                    </div>
-                    <span>${player.score} pts</span>
-                `;
-                board.appendChild(listItem);
-            });
-        };
+    const updateLeaderboard = () => {
+        const board = document.getElementById('leaderboard');
+        board.innerHTML = '';
+        const sorted = Object.values(players).filter(p=>!p.left).sort((a,b)=>b.score - a.score);
+        if (sorted.length === 0) {
+            board.innerHTML = `<li class="text-gray-500 text-center p-4">Увійдіть та приєднайтесь до гри.</li>`;
+            return;
+        }
+        sorted.forEach(p=>{
+            const isMe = p.id === userId;
+            const li = document.createElement('li');
+            li.className = `flex justify-between items-center p-2 rounded-lg text-sm ${isMe ? 'bg-indigo-700 font-bold' : 'hover:bg-gray-700'}`;
+            li.innerHTML = `<div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full" style="background-color: ${p.color};"></span>
+                <span class="${p.isAlive ? '' : 'line-through opacity-50'}">${p.name}</span>
+                ${isMe ? '<span class="text-xs text-yellow-300">(Ви)</span>' : ''}
+                ${p.isReady && gameState === 'lobby' ? '<span class="text-green-400 text-xs ml-2">Готовий</span>' : ''}
+            </div><span>${p.score} pts</span>`;
+            board.appendChild(li);
+        });
+    };
 
+    // --- UI / input handlers ---
+    const initCanvas = () => {
+        canvas = document.getElementById('gameCanvas');
+        canvas.width = GRID_SIZE * TILE_SIZE;
+        canvas.height = GRID_SIZE * TILE_SIZE;
+        ctx = canvas.getContext('2d');
 
-        // --- Обробники Подій ---
+        canvas.addEventListener('click', (e) => {
+            if (gameState !== 'playing' || !players[userId] || !players[userId].isAlive) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+            fireBullet(mouseX, mouseY);
+        });
 
-        const initCanvas = () => {
-            canvas = document.getElementById('gameCanvas');
-            canvas.width = GRID_SIZE * TILE_SIZE;
-            canvas.height = GRID_SIZE * TILE_SIZE;
-            ctx = canvas.getContext('2d');
-
-            canvas.addEventListener('click', (e) => {
-                if (gameState !== 'playing' || !players[userId] || !players[userId].isAlive) return;
-
+        // touch controls (simple)
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
                 const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-
-                const mouseX = (e.clientX - rect.left) * scaleX;
-                const mouseY = (e.clientY - rect.top) * scaleY;
-
-                fireBullet(mouseX, mouseY);
-            });
-
-            // Обробник дотику (мобільний)
-            let joystickCenter = { x: 0, y: 0 };
-            let joystickActive = false;
-            const JOYSTICK_RADIUS = 50;
-
-            canvas.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (e.touches.length > 0) {
-                    const rect = canvas.getBoundingClientRect();
-                    const touch = e.touches[0];
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
-
-                    if (touchX < rect.width / 3 && touchY > rect.height * 2 / 3) {
-                        joystickCenter = { x: touchX, y: touchY };
-                        joystickActive = true;
-                        handleJoystickMove(touchX, touchY, rect);
-                    } else {
-                        const scaleX = canvas.width / rect.width;
-                        const scaleY = canvas.height / rect.height;
-
-                        const targetX = touchX * scaleX;
-                        const targetY = touchY * scaleY;
-                        fireBullet(targetX, targetY);
-                    }
-                }
-            }, { passive: false });
-
-            canvas.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                if (joystickActive && e.touches.length > 0) {
-                    const rect = canvas.getBoundingClientRect();
-                    const touch = e.touches[0];
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
-                    handleJoystickMove(touchX, touchY, rect);
-                }
-            }, { passive: false });
-
-            canvas.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                if (joystickActive) {
-                    joystickActive = false;
+                const t = e.touches[0];
+                const tx = (t.clientX - rect.left) * (canvas.width/rect.width);
+                const ty = (t.clientY - rect.top) * (canvas.height/rect.height);
+                // simple: touch on left third -> move joystick, otherwise shoot
+                if (t.clientX - rect.left < rect.width / 3) {
+                    // don't implement full joystick here; keep simple: set input based on quadrant
                     inputState.up = inputState.down = inputState.left = inputState.right = false;
-                    draw();
+                } else {
+                    fireBullet(tx, ty);
                 }
-            }, { passive: false });
+            }
+        }, { passive:false });
 
-
-            const handleJoystickMove = (touchX, touchY, rect) => {
-                const dx = touchX - joystickCenter.x;
-                const dy = touchY - joystickCenter.y;
-
-                const angle = Math.atan2(dy, dx);
-                const magnitude = Math.min(Math.sqrt(dx * dx + dy * dy), JOYSTICK_RADIUS);
-
-                inputState.up = Math.cos(angle - Math.PI / 2) * magnitude > 20;
-                inputState.down = Math.cos(angle + Math.PI / 2) * magnitude > 20;
-                inputState.left = Math.cos(angle - Math.PI) * magnitude > 20;
-                inputState.right = Math.cos(angle) * magnitude > 20;
-            };
-
-            // Обробник клавіатури (фікс для руху)
-            const handleKey = (event, isDown) => {
-                if (document.activeElement.tagName === 'INPUT') return;
-                if (!userId) return; // Рух тільки для авторизованих
-
-                let handled = true;
-                switch (event.key.toUpperCase()) {
-                    case 'W':
-                    case 'Ц':
-                    case 'ARROWUP':
-                        inputState.up = isDown;
-                        break;
-                    case 'S':
-                    case 'І':
-                    case 'ARROWDOWN':
-                        inputState.down = isDown;
-                        break;
-                    case 'A':
-                    case 'Ф':
-                    case 'ARROWLEFT':
-                        inputState.left = isDown;
-                        break;
-                    case 'D':
-                    case 'В':
-                    case 'ARROWRIGHT':
-                        inputState.right = isDown;
-                        break;
-                    default:
-                        handled = false;
+        const handleKey = (event, isDown) => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            if (!userId) return;
+            let handled = true;
+            const k = event.key.toUpperCase();
+            switch (k) {
+                case 'W': case 'Ц': case 'ARROWUP': inputState.up = isDown; break;
+                case 'S': case 'І': case 'ARROWDOWN': inputState.down = isDown; break;
+                case 'A': case 'Ф': case 'ARROWLEFT': inputState.left = isDown; break;
+                case 'D': case 'В': case 'ARROWRIGHT': inputState.right = isDown; break;
+                default: handled = false;
+            }
+            if (handled && gameState === 'playing') {
+                event.preventDefault();
+                if (isDown && !gameTimerInterval) {
+                    lastUpdateTime = Date.now();
+                    requestAnimationFrame(gameLoop);
                 }
-
-                if (handled && gameState === 'playing') {
-                    event.preventDefault();
-                    if (isDown && !gameTimerInterval) {
-                        lastUpdateTime = Date.now();
-                        requestAnimationFrame(gameLoop);
-                    }
-                }
-            };
-
-            document.addEventListener('keydown', (e) => handleKey(e, true));
-            document.addEventListener('keyup', (e) => handleKey(e, false));
+            }
         };
 
-        const updateUserName = async () => {
-             const inputElement = document.getElementById('user-name-input');
-             const newName = inputElement.value.trim();
-             if (!userId || !userProfileRef) {
-                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб змінити ім'я.";
-                 inputElement.value = userName;
-                 return;
-             }
+        document.addEventListener('keydown', (e)=>handleKey(e,true));
+        document.addEventListener('keyup', (e)=>handleKey(e,false));
+    };
 
-             if (newName && newName.length <= 15) {
-                 userName = newName;
-                 // Оновлення постійного профілю
-                 await updateDoc(userProfileRef, { name: userName }).catch(e => console.error("Помилка оновлення імені:", e));
+    const updateUserName = async () => {
+        const input = document.getElementById('user-name-input');
+        const newName = input.value.trim();
+        if (!userId || !userProfileRef) {
+            document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб змінити ім'я.";
+            input.value = userName;
+            return;
+        }
+        if (newName && newName.length <= 15) {
+            userName = newName;
+            await updateDoc(userProfileRef, { name: userName }).catch(e=>console.error(e));
+            if (playerRef) await updateDoc(playerRef, { name: userName }).catch(e=>console.error(e));
+            document.getElementById('game-status').textContent = `Ім'я змінено на: ${userName}`;
+        } else {
+            document.getElementById('game-status').textContent = "Ім'я має бути від 1 до 15 символів.";
+            input.value = userName;
+        }
+    };
 
-                 // Оновлення поточного гравця, якщо він у кімнаті
-                 if (playerRef) {
-                     updateDoc(playerRef, { name: userName }).catch(e => console.error("Помилка оновлення імені в кімнаті:", e));
-                 }
-                 document.getElementById('game-status').textContent = `Ім'я змінено на: ${userName}`;
-             } else {
-                 document.getElementById('game-status').textContent = "Ім'я має бути від 1 до 15 символів.";
-                 inputElement.value = userName;
-             }
+    const toggleReady = async () => {
+        if (!playerRef || !userId) return;
+        const myPlayer = players[userId];
+        if (!myPlayer) return;
+        const newState = !myPlayer.isReady;
+        await updateDoc(playerRef, { isReady: newState }).catch(e=>console.error(e));
+        document.getElementById('ready-toggle-btn').textContent = newState ? 'Готовий (ТАК)' : 'Готовий (Немає)';
+    };
+
+    // --- Підключення UI та запуск ---
+    window.onload = () => {
+        initCanvas();
+        initializeFirebase().then(()=>{
+            draw();
+        });
+
+        document.getElementById('create-game-btn').addEventListener('click', createGame);
+        document.getElementById('join-game-btn').addEventListener('click', joinGame);
+        document.getElementById('start-game-btn').addEventListener('click', startGame);
+        document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
+        document.getElementById('user-name-input').addEventListener('blur', updateUserName);
+        document.getElementById('user-name-input').addEventListener('keypress',(e)=>{ if (e.key==='Enter') updateUserName(); });
+        document.getElementById('ready-toggle-btn').addEventListener('click', toggleReady);
+        document.getElementById('google-sign-in-btn').addEventListener('click', signInWithGoogle);
+        document.getElementById('logout-btn').addEventListener('click', handleSignOut);
+
+        const resizeCanvas = () => {
+            const container = document.getElementById('canvas-container');
+            const size = Math.min(container.clientWidth, window.innerHeight - 350);
+            canvas.style.width = `${size}px`;
+            canvas.style.height = `${size}px`;
         };
-
-
-        // --- Запуск ---
-        window.onload = () => {
-            initCanvas();
-            initializeFirebase().then(() => {
-                if (isHost) {
-                    listenToBulletQueue();
-                }
-                draw();
-            });
-
-            // Підключення кнопок до функцій
-            document.getElementById('create-game-btn').addEventListener('click', createGame);
-            document.getElementById('join-game-btn').addEventListener('click', joinGame);
-            document.getElementById('start-game-btn').addEventListener('click', startGame);
-            document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
-            document.getElementById('user-name-input').addEventListener('blur', updateUserName);
-            document.getElementById('user-name-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') updateUserName();
-            });
-            document.getElementById('ready-toggle-btn').addEventListener('click', toggleReady);
-            document.getElementById('google-sign-in-btn').addEventListener('click', signInWithGoogle); // Нова кнопка Google Sign-In
-            document.getElementById('logout-btn').addEventListener('click', handleSignOut); // Нова кнопка Виходу
-
-            const resizeCanvas = () => {
-                const container = document.getElementById('canvas-container');
-                const size = Math.min(container.clientWidth, window.innerHeight - 350);
-                canvas.style.width = `${size}px`;
-                canvas.style.height = `${size}px`;
-            };
-            window.addEventListener('resize', resizeCanvas);
-            resizeCanvas();
-
-        };
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    };
     </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
-        #gameCanvas {
-            background-color: #2d3748;
-            border: 2px solid #4a5568;
-            border-radius: 8px;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
-            touch-action: none;
-            max-width: 100%;
-            height: auto;
-        }
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
-            box-shadow: 0 4px #1a202c;
-            transform: translateY(0);
-        }
-        .btn:hover {
-            opacity: 0.9;
-            box-shadow: 0 6px #1a202c;
-        }
-        .btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 #1a202c;
-        }
-        .btn-primary { background-color: #4c51bf; color: #fff; }
-        .btn-secondary { background-color: #38a169; color: #fff; }
-        .btn-danger { background-color: #e53e3e; color: #fff; }
-        .btn-disabled { background-color: #a0aec0; color: #718096; cursor: not-allowed; box-shadow: none; transform: translateY(0); }
+        #gameCanvas { background-color: #2d3748; border: 2px solid #4a5568; border-radius: 8px; box-shadow: 0 10px 15px rgba(0,0,0,.5); touch-action:none; max-width:100%; height:auto; }
+        .btn { padding:10px 20px; border-radius:8px; font-weight:bold; transition:all .2s; cursor:pointer; box-shadow:0 4px #1a202c; transform:translateY(0); }
+        .btn-primary { background-color:#4c51bf; color:#fff; }
+        .btn-secondary { background-color:#38a169; color:#fff; }
+        .btn-danger { background-color:#e53e3e; color:#fff; }
     </style>
 </head>
 <body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
-
     <header class="w-full max-w-4xl mb-6">
         <h1 class="text-4xl font-extrabold text-indigo-400 text-center">Офісний Бій: Mayhem 💥</h1>
         <p id="game-status" class="text-sm text-center text-gray-400 mt-2">Очікування авторизації...</p>
     </header>
 
     <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <!-- Ліва Панель: Статус та Лобі -->
         <div class="md:col-span-1 space-y-4">
             <div class="bg-gray-800 p-4 rounded-xl shadow-lg">
                 <h2 class="text-xl font-bold text-indigo-300 mb-2">Мій Статус</h2>
@@ -1110,84 +833,59 @@ const logoutUser = async () => {
                     <span id="my-hp" class="font-mono text-green-400">100</span>
                 </div>
                 <div class="w-full bg-gray-600 rounded-full h-2.5 mt-1">
-                    <div id="my-hp-bar" class="h-2.5 rounded-full" style="width: 100%; background-color: #48bb78;"></div>
+                    <div id="my-hp-bar" class="h-2.5 rounded-full" style="width:100%; background-color:#48bb78"></div>
                 </div>
                 <div class="flex items-center justify-between mt-2 text-lg">
                     <span>Рахунок:</span>
                     <span id="my-score" class="font-mono text-yellow-400">0</span>
                 </div>
                 <div class="text-xs text-gray-500 mt-2">
-                    Кімната: <span id="room-id-display" class="font-mono text-sm"> — </span>
-                    <br>
+                    Кімната: <span id="room-id-display" class="font-mono text-sm"> — </span><br>
                     <span id="user-id-display" class="font-mono text-xs hidden"></span>
                 </div>
             </div>
 
-            <!-- Керування автентифікацією -->
             <div id="auth-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3">
                  <button id="google-sign-in-btn" class="btn w-full flex items-center justify-center bg-white text-gray-800 hover:bg-gray-200">
-                    <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12.0003 4.6062C14.7937 4.6062 16.7118 5.766 17.6569 6.6713L20.301 3.999C18.6833 2.508 16.2979 1.666 12.0003 1.666C7.05267 1.666 2.76672 3.5262 0.817383 6.6475V6.6479H8.79092C9.28912 6.6479 9.69971 7.05849 9.69971 7.55669C9.69971 8.05489 9.28912 8.46548 8.79092 8.46548H2.89966C2.39958 10.3258 2.39958 12.6074 2.89966 14.4678H8.79092C9.28912 14.4678 9.69971 14.8784 9.69971 15.3766C9.69971 15.8748 9.28912 16.2854 8.79092 16.2854H0.817383C2.76672 19.4067 7.05267 21.267 12.0003 21.267C16.2979 21.267 18.6833 20.425 20.301 18.934L17.6569 16.2618C16.7118 17.1671 14.7937 18.3269 12.0003 18.3269C9.09635 18.3269 6.55174 17.068 5.09347 15.1508C5.0768 15.1091 5.05193 15.0601 5.03478 15.0205C5.01831 14.9808 5.00003 14.9412 4.98687 14.9015C4.8465 14.5447 4.80003 14.0772 4.80003 13.5668C4.80003 13.0564 4.8465 12.5889 4.98687 12.2321C5.00003 12.1924 5.01831 12.1528 5.03478 12.1132C5.05193 12.0735 5.0768 12.0245 5.09347 11.9828C6.55174 10.0656 9.09635 8.80669 12.0003 8.80669C13.8863 8.80669 15.1963 9.49721 16.0968 10.3662L17.7537 8.65349C16.4805 7.42062 14.6648 6.6479 12.0003 6.6479C9.28912 6.6479 7.05267 7.6439 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724Z" fill="currentColor"/>
-                    </svg>
                     Увійти через Google
                  </button>
             </div>
-             <button id="logout-btn" class="btn btn-danger w-full hidden">
-                Вийти з Профілю
-            </button>
+            <button id="logout-btn" class="btn btn-danger w-full hidden">Вийти з Профілю</button>
 
-
-            <!-- Введення Імені -->
             <div id="name-entry" class="bg-gray-800 p-4 rounded-xl shadow-lg">
                 <label for="user-name-input" class="block text-sm font-medium text-gray-300 mb-2">Ваше Ігрове Ім'я (до 15 симв.):</label>
                 <input type="text" id="user-name-input" class="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-white" maxlength="15" value="AnonymousPlayer">
             </div>
 
-            <!-- Керування Лобі -->
             <div id="lobby-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3">
-                <button id="create-game-btn" class="btn btn-secondary w-full">
-                    Створити Нову Гру
-                </button>
-                <!-- ФІКС: Більш контрольована ширина для input/button -->
+                <button id="create-game-btn" class="btn btn-secondary w-full">Створити Нову Гру</button>
                 <div class="flex space-x-2 w-full">
                     <input type="text" id="join-room-id" placeholder="ID кімнати" class="w-3/5 p-2 rounded bg-gray-700 border border-gray-600 text-white text-center" maxlength="8">
-                    <button id="join-game-btn" class="btn btn-primary w-2/5">
-                        Приєднатися
-                    </button>
+                    <button id="join-game-btn" class="btn btn-primary w-2/5">Приєднатися</button>
                 </div>
             </div>
 
-            <!-- Керування Грою -->
             <div id="game-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3 hidden">
-                <button id="ready-toggle-btn" class="btn btn-secondary w-full">
-                    Готовий (Немає)
-                </button>
-                <button id="start-game-btn" class="btn btn-primary w-full hidden" disabled>
-                    Готові: 0/0 (Потрібно ≥2)
-                </button>
-                <button id="leave-game-btn" class="btn btn-danger w-full hidden">
-                    Вийти з Гри
-                </button>
+                <button id="ready-toggle-btn" class="btn btn-secondary w-full">Готовий (Немає)</button>
+                <button id="start-game-btn" class="btn btn-primary w-full hidden" disabled>Готові: 0/0 (Потрібно ≥2)</button>
+                <button id="leave-game-btn" class="btn btn-danger w-full hidden">Вийти з Гри</button>
             </div>
 
-             <!-- Інструкції -->
             <div class="bg-gray-800 p-4 rounded-xl shadow-lg text-sm">
                 <h3 class="font-bold text-gray-300 mb-2">Як Грати:</h3>
                 <ul class="list-disc list-inside space-y-1 text-gray-400">
-                    <li>🕹️ **Рух:** **WASD** або **Стрілки** (На мобільному: лівий нижній кут).</li>
-                    <li>💥 **Стрільба:** **Клік миші** або **Дотик** (за межами зони джойстика).</li>
-                    <li>💰 **Очки:** Збирайте монети (+5) та вбивайте суперників (+10).</li>
-                    <li>🛡️ **Стіни:** Перешкоди блокують рух і постріли.</li>
+                    <li>🕹️ Рух: WASD або Стрілки (мобільний: торк) </li>
+                    <li>💥 Стрільба: Клік миші або дотик (за межами джойстика)</li>
+                    <li>💰 Очки: Збирайте монети (+5) та вбивайте суперників (+10)</li>
+                    <li>🛡️ Стіни: Перешкоди блокують рух і постріли</li>
                 </ul>
             </div>
         </div>
 
-        <!-- Центральна Панель: Ігрове Полотно -->
         <div id="canvas-container" class="md:col-span-2 flex justify-center items-center min-h-[400px]">
             <canvas id="gameCanvas" class="w-full aspect-square"></canvas>
         </div>
 
-        <!-- Права Панель: Таблиця Лідерів -->
         <div class="md:col-span-3 lg:col-span-1">
             <div class="bg-gray-800 p-4 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-4">
