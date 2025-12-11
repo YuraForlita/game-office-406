@@ -9,7 +9,7 @@
         // Імпорти Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Глобальні змінні
@@ -68,13 +68,13 @@
         // !!! УВАГА: Якщо ви завантажуєте цей код на GitHub, ЦІ КЛЮЧІ БУДУТЬ ПУБЛІЧНИМИ.
         // Це СТВОРЮЄ РИЗИК БЕЗПЕКИ для вашого проєкту Firebase.
         const HARDCODED_FIREBASE_CONFIG = {
-        apiKey: "AIzaSyAqOKy-am1nyiavsIiknhZh2Vyq0crGYHA",
-        authDomain: "game-office-406.firebaseapp.com",
-        projectId: "game-office-406",
-        storageBucket: "game-office-406.firebasestorage.app",
-        messagingSenderId: "662530550810",
-        appId: "1:662530550810:web:753eccc327843761c035a3",
-        measurementId: "G-LYPY42C873"
+            apiKey: "AIzaSyBu9M5MDiaWJXFtoOpK--KZXKRtTFZt0",
+            authDomain: "planer-97eb1.firebaseapp.com",
+            projectId: "planer-97eb1",
+            storageBucket: "planer-97eb1.firebasestorage.app",
+            messagingSenderId: "322073132266",
+            appId: "1:322073132266:web:2a1e39b188d7567a31ab93",
+            measurementId: "G-9304LH3F99"
         };
         // -----------------------------------------------------------
 
@@ -122,11 +122,13 @@
                         document.getElementById('auth-status').classList.add('text-green-400');
                         document.getElementById('auth-controls').classList.add('hidden'); // Приховати кнопки входу/виходу
                         document.getElementById('logout-btn').classList.remove('hidden');
+                        
+                        // Очистити загальний статус після успішного входу
+                        document.getElementById('game-status').textContent = "Авторизація успішна. Готовність до гри.";
 
                         // Завантаження або створення постійного профілю
                         await loadOrCreateUserProfile(user.displayName);
 
-                        document.getElementById('game-status').textContent = "Авторизація успішна. Готовність до гри.";
                     } else {
                         userId = null;
                         userName = 'AnonymousPlayer';
@@ -171,12 +173,12 @@
         const signInWithGoogle = async () => {
             const provider = new GoogleAuthProvider();
             try {
-                // Запобігаємо спливаючим вікнам, якщо вікно закрито або не сфокусовано
-                await signInWithPopup(auth, provider);
                 // onAuthStateChanged обробить подальше оновлення UI
+                await signInWithPopup(auth, provider);
             } catch (error) {
                 console.error("Помилка входу через Google:", error);
-                document.getElementById('game-status').textContent = `Помилка входу: ${error.message}`;
+                // Повідомляємо користувача про ймовірну причину
+                document.getElementById('game-status').textContent = `Помилка входу: ${error.message}. Спробуйте ще раз або перевірте налаштування браузера щодо спливаючих вікон (це поширено у вбудованих вікнах).`;
             }
         };
 
@@ -818,7 +820,7 @@
 
                 ctx.beginPath();
                 ctx.moveTo(0, i * TILE_SIZE);
-                ctx.lineTo(GRID_SIZE * TILE_SIZE, i * TILE_SIZE);
+                ctx.lineTo(0, GRID_SIZE * TILE_SIZE);
                 ctx.stroke();
             }
 
@@ -1197,9 +1199,10 @@
                 <button id="create-game-btn" class="btn btn-secondary w-full">
                     Створити Нову Гру
                 </button>
-                <div class="flex space-x-2">
-                    <input type="text" id="join-room-id" placeholder="ID кімнати" class="flex-grow p-2 rounded bg-gray-700 border border-gray-600 text-white text-center" maxlength="8">
-                    <button id="join-game-btn" class="btn btn-primary">
+                <!-- ФІКС: Більш контрольована ширина для input/button -->
+                <div class="flex space-x-2 w-full">
+                    <input type="text" id="join-room-id" placeholder="ID кімнати" class="w-3/5 p-2 rounded bg-gray-700 border border-gray-600 text-white text-center" maxlength="8">
+                    <button id="join-game-btn" class="btn btn-primary w-2/5">
                         Приєднатися
                     </button>
                 </div>
@@ -1252,7 +1255,7 @@
     </main>
 
     <footer class="mt-8 text-xs text-gray-500 text-center">
-        Office Mayhem (v1.2) | Постійні профілі через Google Sign-In та Google Firestore.
+        Office Mayhem (v1.3) | Постійні профілі через Google Sign-In та Google Firestore.
     </footer>
 </body>
 </html>
