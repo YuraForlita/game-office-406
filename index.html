@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Office Brawl: Deadline Defender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Roboto', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
+        .game-font { font-family: 'Black Ops One', cursive; }
+        .hidden { display: none !important; }
+        
+        /* Joystick styles */
+        #joystick-zone {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: none; /* Shown on mobile via JS logic ideally, or media query */
+            touch-action: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        
+        /* Mobile Fire Button */
+        #mobile-fire-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            background: rgba(239, 68, 68, 0.6);
+            border: 4px solid rgba(239, 68, 68, 0.8);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            user-select: none;
+        }
+        #mobile-fire-btn:active { background: rgba(239, 68, 68, 0.9); transform: scale(0.95); }
+
+        @media (hover: none) and (pointer: coarse) {
+            #joystick-zone, #mobile-fire-btn { display: flex; }
+        }
+    </style>
+</head>
+<body class="bg-zinc-900 text-white h-screen w-screen flex flex-col">
+
+    <!-- APP CONTAINER -->
+    <div id="app" class="relative w-full h-full max-w-5xl mx-auto flex flex-col">
+        
+        <!-- HEADER -->
+        <header class="bg-zinc-800 p-3 border-b border-zinc-700 flex justify-between items-center shadow-md z-10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded bg-orange-600 flex items-center justify-center text-xl font-bold border-2 border-orange-400" id="userAvatar">?</div>
+                <div>
+                    <h1 id="userNameDisplay" class="font-bold text-lg text-orange-400 leading-none">Гість</h1>
+                    <div class="text-[10px] text-zinc-400 uppercase tracking-widest">Office Brawl</div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-zinc-400">XP <span id="userXpDisplay" class="text-white font-bold">0</span></div>
+                <div class="flex gap-2 text-xs">
+                    <span class="text-green-400">Wins: <b id="winsDisplay">0</b></span>
+                    <span class="text-red-400">Kills: <b id="killsDisplay">0</b></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- SCREENS -->
+        <main class="flex-grow relative flex items-center justify-center p-2 overflow-hidden">
+
+            <!-- 1. LOGIN -->
+            <div id="screen-login" class="w-full max-w-md bg-zinc-800 p-8 rounded-xl shadow-2xl border border-zinc-700 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-500 to-red-600"></div>
+                <h2 class="text-4xl game-font text-center text-white mb-2">OFFICE<br><span class="text-orange-500">BRAWL</span></h2>
+                <p class="text-center text-zinc-400 text-sm mb-8">Deadline Defender Edition</p>
+                
+                <div class="space-y-4">
+                    <input type="text" id="nicknameInput" class="w-full bg-zinc-900 border border-zinc-600 rounded p-4 text-white text-center text-lg focus:border-orange-500 outline-none transition" placeholder="Твій позивний" maxlength="12">
+                    <button id="btnLogin" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded transition shadow-[0_4px_0_rgb(154,52,18)] active:shadow-none active:translate-y-1 uppercase tracking-wider">
+                        Увірватися в офіс
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. MAIN MENU -->
+            <div id="screen-menu" class="hidden w-full max-w-md space-y-4">
+                <div class="bg-zinc-800 p-6 rounded-xl border border-zinc-700 text-center shadow-xl">
+                    <h3 class="text-xl font-bold mb-6 text-orange-400">ГОЛОВНЕ МЕНЮ</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <button id="btnCreateRoom" class="bg-green-600 hover:bg-green-700 py-4 rounded-lg font-bold shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-1 text-lg">
+                            СТВОРИТИ АРЕНУ
+                        </button>
+                        <button id="btnJoinMenu" class="bg-blue-600 hover:bg-blue-700 py-4 rounded-lg font-bold shadow-[0_4px_0_rgb(29,78,216)] active:shadow-none active:translate-y-1 text-lg">
+                            ЗНАЙТИ ГРУ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. JOIN ROOM -->
+            <div id="screen-join" class="hidden w-full max-w-md bg-zinc-800 p-8 rounded-xl border border-zinc-700 text-center">
+                <h3 class="text-xl font-bold mb-4">Код Кімнати</h3>
+                <input type="text" id="roomCodeInput" class="w-full bg-zinc-900 border border-zinc-600 rounded p-4 text-center text-3xl tracking-[0.5em] font-mono uppercase mb-6 focus:border-blue-500 outline-none" placeholder="XXXX" maxlength="4">
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="btnBackToMenu" class="bg-zinc-600 hover:bg-zinc-500 py-3 rounded">Назад</button>
+                    <button id="btnJoinRoom" class="bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold">В Бій!</button>
+                </div>
+            </div>
+
+            <!-- 4. LOBBY -->
+            <div id="screen-lobby" class="hidden w-full max-w-lg bg-zinc-800 p-6 rounded-xl border border-zinc-700 shadow-2xl">
+                <div class="flex justify-between items-end mb-6 border-b border-zinc-700 pb-4">
+                    <div>
+                        <div class="text-xs text-zinc-400">АРЕНА</div>
+                        <div id="lobbyCode" class="text-3xl font-mono text-orange-500 font-bold tracking-wider">----</div>
+                    </div>
+                    <div id="lobbyCount" class="bg-zinc-700 px-3 py-1 rounded text-sm font-mono">0/6</div>
+                </div>
+                
+                <div class="mb-8">
+                    <h4 class="text-xs text-zinc-400 uppercase mb-3">Бійці в лобі:</h4>
+                    <ul id="lobbyPlayerList" class="space-y-2"></ul>
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="btnLeaveLobby" class="px-4 py-3 bg-red-900/50 hover:bg-red-900 text-red-200 rounded">Вийти</button>
+                    <button id="btnStartGame" class="flex-1 bg-green-600 hover:bg-green-700 font-bold py-3 rounded disabled:opacity-50 disabled:grayscale transition shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-1">
+                        РОЗПОЧАТИ БІЙ
+                    </button>
+                </div>
+                <p id="lobbyHostMsg" class="text-xs text-center text-zinc-500 mt-3 hidden">Чекаємо хоста...</p>
+            </div>
+
+            <!-- 5. GAME CANVAS -->
+            <div id="screen-game" class="hidden w-full h-full relative flex flex-col items-center justify-center bg-zinc-900">
+                
+                <!-- HUD -->
+                <div class="absolute top-2 left-0 w-full px-4 flex justify-between items-start pointer-events-none z-10">
+                    <!-- Health -->
+                    <div class="bg-zinc-900/80 p-2 rounded border border-zinc-600 backdrop-blur-sm">
+                        <div class="text-[10px] text-zinc-400 mb-1">HP</div>
+                        <div class="w-32 h-4 bg-zinc-700 rounded-sm overflow-hidden border border-zinc-600">
+                            <div id="hudHealthBar" class="h-full bg-green-500 transition-all duration-200" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Timer & Score -->
+                    <div class="flex flex-col items-end gap-2">
+                        <div class="bg-zinc-900/80 px-4 py-2 rounded border border-zinc-600 backdrop-blur-sm">
+                            <span id="gameTimer" class="font-mono text-2xl font-bold text-white">60</span>
+                        </div>
+                        <div class="bg-zinc-900/80 px-3 py-1 rounded border border-zinc-600 backdrop-blur-sm text-yellow-400 font-bold">
+                            <span id="hudScore">0</span> pts
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div id="gameMessage" class="absolute top-1/4 left-1/2 -translate-x-1/2 text-2xl font-bold text-red-500 pointer-events-none drop-shadow-lg opacity-0 transition-opacity z-20 whitespace-nowrap">
+                    HIT!
+                </div>
+
+                <canvas id="gameCanvas" width="800" height="600" class="bg-[#1a1a1a] shadow-2xl cursor-crosshair touch-none max-w-full max-h-full border-4 border-zinc-700 rounded-lg"></canvas>
+
+                <!-- Mobile Controls -->
+                <div id="joystick-zone"><div id="joystick-knob"></div></div>
+                <div id="mobile-fire-btn">FIRE</div>
+
+                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-zinc-500 text-[10px] pointer-events-none hidden md:block">
+                    WASD = Рух | MOUSE = Приціл | CLICK = Вогонь
+                </div>
+            </div>
+
+            <!-- 6. RESULTS -->
+            <div id="screen-results" class="hidden w-full max-w-md bg-zinc-800 p-8 rounded-xl border border-zinc-700 text-center z-50 shadow-2xl">
+                <h2 class="text-4xl game-font text-white mb-6">MATCH END</h2>
+                
+                <div class="bg-zinc-900 p-6 rounded-lg border border-zinc-600 mb-6">
+                    <div class="text-zinc-400 text-sm uppercase tracking-widest mb-2">Переможець</div>
+                    <div id="winnerName" class="text-3xl font-bold text-orange-500 mb-1">---</div>
+                    <div class="text-sm text-white">Score: <span id="winnerScore" class="font-mono text-yellow-400">0</span></div>
+                </div>
+
+                <div class="flex justify-between items-center bg-zinc-700/50 p-3 rounded mb-6 text-sm">
+                    <span>Твій результат:</span>
+                    <span id="myResultScore" class="font-bold text-white">0</span>
+                </div>
+
+                <button id="btnBackToLobby" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded shadow-[0_4px_0_rgb(29,78,216)] active:shadow-none active:translate-y-1">
+                    В МЕНЮ
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INIT ---
+        const firebaseConfig = JSON.parse(__firebase_config || '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-office-brawl';
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- CONSTANTS ---
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        const PLAYER_RADIUS = 20;
+        const BULLET_SPEED = 12;
+        const PLAYER_SPEED = 5;
+        const FIRE_COOLDOWN = 400; // ms
+        const MAX_HP = 100;
+        const GAME_DURATION = 90; // 90 sec
+        
+        // Colors
+        const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        
+        // Obstacles (Desks)
+        const OBSTACLES = [
+            { x: 150, y: 150, w: 100, h: 60, color: '#4b5563' },
+            { x: 550, y: 150, w: 100, h: 60, color: '#4b5563' },
+            { x: 150, y: 390, w: 100, h: 60, color: '#4b5563' },
+            { x: 550, y: 390, w: 100, h: 60, color: '#4b5563' },
+            { x: 350, y: 275, w: 100, h: 50, color: '#374151' } // Center desk
+        ];
+
+        // --- STATE ---
+        let currentUser = null;
+        let userData = null;
+        let currentRoomId = null;
+        let isHost = false;
+        let gameActive = false;
+        
+        // Game Logic State
+        let localPlayer = { x: 400, y: 300, hp: 100, angle: 0, lastShot: 0 };
+        let input = { x: 0, y: 0, firing: false, mouseX: 0, mouseY: 0 };
+        let bullets = []; // { x, y, vx, vy, ownerId }
+        let powerups = []; // { x, y, type, id }
+        let playersMap = {}; // sync data
+        let remoteShootingEvents = {}; // Track last shot timestamp to spawn bullets
+        
+        // Refs
+        let roomUnsubscribe = null;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- AUTH ---
+        async function initApp() {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'stats');
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    userData = snap.data();
+                    updateHeader();
+                    showScreen('menu');
+                } else {
+                    showScreen('login');
+                }
+            }
+        });
+
+        initApp();
+
+        // --- UI ---
+        const screens = {
+            login: document.getElementById('screen-login'),
+            menu: document.getElementById('screen-menu'),
+            join: document.getElementById('screen-join'),
+            lobby: document.getElementById('screen-lobby'),
+            game: document.getElementById('screen-game'),
+            results: document.getElementById('screen-results')
+        };
+
+        function showScreen(name) {
+            Object.values(screens).forEach(el => el.classList.add('hidden'));
+            screens[name].classList.remove('hidden');
+        }
+
+        function updateHeader() {
+            if(!userData) return;
+            document.getElementById('userNameDisplay').textContent = userData.nickname;
+            document.getElementById('userAvatar').textContent = userData.nickname.charAt(0).toUpperCase();
+            document.getElementById('userXpDisplay').textContent = userData.xp || 0;
+            document.getElementById('winsDisplay').textContent = userData.wins || 0;
+            document.getElementById('killsDisplay').textContent = userData.kills || 0;
+        }
+
+        function showMessage(text, color = 'red') {
+            const el = document.getElementById('gameMessage');
+            el.textContent = text;
+            el.style.color = color;
+            el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 1000);
+        }
+
+        // --- MENU EVENTS ---
+        document.getElementById('btnLogin').addEventListener('click', async () => {
+            const nick = document.getElementById('nicknameInput').value.trim();
+            if (!nick) return;
+            const data = { nickname: nick, xp: 0, wins: 0, kills: 0 };
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats'), data);
+            userData = data;
+            updateHeader();
+            showScreen('menu');
+        });
+
+        document.getElementById('btnCreateRoom').addEventListener('click', async () => {
+            const code = Math.random().toString(36).substr(2, 4).toUpperCase();
+            currentRoomId = code;
+            isHost = true;
+            
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code), {
+                hostId: currentUser.uid,
+                status: 'waiting',
+                players: {
+                    [currentUser.uid]: {
+                        id: currentUser.uid,
+                        name: userData.nickname,
+                        color: COLORS[0],
+                        hp: 100,
+                        score: 0,
+                        x: 400,
+                        y: 300,
+                        ready: true
+                    }
+                },
+                powerups: []
+            });
+            enterLobby(code);
+        });
+
+        document.getElementById('btnJoinMenu').addEventListener('click', () => showScreen('join'));
+        document.getElementById('btnBackToMenu').addEventListener('click', () => showScreen('menu'));
+
+        document.getElementById('btnJoinRoom').addEventListener('click', async () => {
+            const code = document.getElementById('roomCodeInput').value.toUpperCase();
+            if (code.length !== 4) return;
+            
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+            const snap = await getDoc(roomRef);
+            if (!snap.exists() || snap.data().status !== 'waiting') return alert('Недоступно');
+            
+            currentRoomId = code;
+            isHost = false;
+            
+            const color = COLORS[Object.keys(snap.data().players).length % COLORS.length];
+            await updateDoc(roomRef, {
+                [`players.${currentUser.uid}`]: {
+                    id: currentUser.uid,
+                    name: userData.nickname,
+                    color: color,
+                    hp: 100,
+                    score: 0,
+                    x: Math.random() * 600 + 100,
+                    y: Math.random() * 400 + 100,
+                    ready: true
+                }
+            });
+            enterLobby(code);
+        });
+
+        document.getElementById('btnStartGame').addEventListener('click', async () => {
+            if(!isHost) return;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), {
+                status: 'playing',
+                startTime: Date.now()
+            });
+        });
+
+        document.getElementById('btnLeaveLobby').addEventListener('click', () => {
+            if(roomUnsubscribe) roomUnsubscribe();
+            showScreen('menu');
+        });
+
+        document.getElementById('btnBackToLobby').addEventListener('click', () => showScreen('menu'));
+
+        // --- LOBBY & SYNC ---
+        function enterLobby(code) {
+            showScreen('lobby');
+            document.getElementById('lobbyCode').textContent = code;
+            
+            roomUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code), (snap) => {
+                if (!snap.exists()) return;
+                const data = snap.data();
+                
+                // Lobby UI
+                const players = Object.values(data.players || {});
+                document.getElementById('lobbyCount').textContent = `${players.length}/6`;
+                const list = document.getElementById('lobbyPlayerList');
+                list.innerHTML = players.map(p => 
+                    `<li class="flex items-center gap-2 bg-zinc-700/50 p-2 rounded border-l-4 border-[${p.color}]">
+                        <div class="w-3 h-3 rounded-full" style="background:${p.color}"></div>
+                        <span class="text-white font-bold">${p.name}</span>
+                        ${p.id === data.hostId ? '👑' : ''}
+                    </li>`
+                ).join('');
+
+                document.getElementById('btnStartGame').disabled = (currentUser.uid !== data.hostId);
+                
+                // Game Start
+                if (data.status === 'playing' && !gameActive) {
+                    startGame(data);
+                }
+                
+                // Sync Game Data
+                if (gameActive) {
+                    playersMap = data.players;
+                    powerups = data.powerups || [];
+                    
+                    // Sync Remote Shots
+                    players.forEach(p => {
+                        if (p.id === currentUser.uid) return;
+                        // If we see a newer shot timestamp than we have recorded, spawn bullet
+                        if (p.lastShootAction && (!remoteShootingEvents[p.id] || p.lastShootAction.time > remoteShootingEvents[p.id])) {
+                            remoteShootingEvents[p.id] = p.lastShootAction.time;
+                            spawnBullet(p.x, p.y, p.lastShootAction.angle, p.id);
+                        }
+                    });
+
+                    // Game Over
+                    if (data.status === 'finished') {
+                        finishGame(players);
+                    }
+                    
+                    // Timer
+                    if (data.startTime) {
+                        const elapsed = (Date.now() - data.startTime) / 1000;
+                        const left = Math.max(0, Math.ceil(GAME_DURATION - elapsed));
+                        document.getElementById('gameTimer').textContent = left;
+                        if (isHost && left <= 0) {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { status: 'finished' });
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- GAMEPLAY ---
+        function startGame(data) {
+            gameActive = true;
+            showScreen('game');
+            bullets = [];
+            remoteShootingEvents = {};
+            
+            // Reset local pos
+            const myData = data.players[currentUser.uid];
+            localPlayer = { ...localPlayer, x: myData.x, y: myData.y, hp: 100, score: 0 };
+            
+            // Start Loop
+            requestAnimationFrame(gameLoop);
+            
+            // Start Network Loop
+            const interval = setInterval(() => {
+                if (!gameActive) { clearInterval(interval); return; }
+                syncPlayer();
+                if (isHost && Math.random() < 0.02 && powerups.length < 3) spawnPowerup(); 
+            }, 100);
+        }
+
+        async function syncPlayer() {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            // We just update our x, y, hp, angle
+            const update = {
+                [`players.${currentUser.uid}.x`]: localPlayer.x,
+                [`players.${currentUser.uid}.y`]: localPlayer.y,
+                [`players.${currentUser.uid}.angle`]: localPlayer.angle,
+                [`players.${currentUser.uid}.hp`]: localPlayer.hp
+            };
+            await updateDoc(roomRef, update);
+        }
+
+        async function spawnPowerup() {
+            const type = Math.random() > 0.5 ? 'coffee' : 'donut';
+            const newPower = {
+                x: Math.random() * (CANVAS_WIDTH - 60) + 30,
+                y: Math.random() * (CANVAS_HEIGHT - 60) + 30,
+                type: type,
+                id: Date.now()
+            };
+            // Host pushes new powerup
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            const snap = await getDoc(roomRef);
+            if(snap.exists()) {
+                const list = snap.data().powerups || [];
+                list.push(newPower);
+                updateDoc(roomRef, { powerups: list });
+            }
+        }
+
+        // --- CORE LOOP ---
+        function gameLoop() {
+            if (!gameActive) return;
+            
+            updateLogic();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateLogic() {
+            // 1. Movement
+            let dx = input.x;
+            let dy = input.y;
+            
+            // Normalize speed
+            if (dx !== 0 || dy !== 0) {
+                const len = Math.sqrt(dx*dx + dy*dy);
+                dx = (dx / len) * PLAYER_SPEED;
+                dy = (dy / len) * PLAYER_SPEED;
+            }
+            
+            // Proposed new pos
+            let nextX = localPlayer.x + dx;
+            let nextY = localPlayer.y + dy;
+            
+            // Collision with Walls
+            nextX = Math.max(PLAYER_RADIUS, Math.min(CANVAS_WIDTH - PLAYER_RADIUS, nextX));
+            nextY = Math.max(PLAYER_RADIUS, Math.min(CANVAS_HEIGHT - PLAYER_RADIUS, nextY));
+            
+            // Collision with Obstacles
+            if (!checkObstacleCollision(nextX, nextY)) {
+                localPlayer.x = nextX;
+                localPlayer.y = nextY;
+            }
+
+            // 2. Aim Angle
+            // Calculate angle based on mouse or joystick
+            // If using mouse (desktop):
+            if (input.mouseX !== 0 || input.mouseY !== 0) {
+                 // Get canvas rect for offset
+                 const rect = canvas.getBoundingClientRect();
+                 // Scale factor if canvas is resized by CSS
+                 const scaleX = canvas.width / rect.width;
+                 const scaleY = canvas.height / rect.height;
+                 
+                 const mx = (input.mouseX - rect.left) * scaleX;
+                 const my = (input.mouseY - rect.top) * scaleY;
+                 localPlayer.angle = Math.atan2(my - localPlayer.y, mx - localPlayer.x);
+            }
+
+            // 3. Firing
+            if (input.firing && Date.now() - localPlayer.lastShot > FIRE_COOLDOWN && localPlayer.hp > 0) {
+                shoot();
+            }
+
+            // 4. Bullets Update
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.x += b.vx;
+                b.y += b.vy;
+                
+                // Wall Remove
+                if (b.x < 0 || b.x > CANVAS_WIDTH || b.y < 0 || b.y > CANVAS_HEIGHT || checkObstacleCollision(b.x, b.y, 5)) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                
+                // Hit Detection (Trust Victim)
+                // If I am hit by a bullet that is NOT mine
+                if (b.ownerId !== currentUser.uid && localPlayer.hp > 0) {
+                    const dist = Math.hypot(b.x - localPlayer.x, b.y - localPlayer.y);
+                    if (dist < PLAYER_RADIUS + 5) {
+                        // HIT!
+                        takeDamage(10, b.ownerId);
+                        bullets.splice(i, 1);
+                        // Visual Shake?
+                    }
+                }
+            }
+            
+            // 5. Powerups
+            powerups.forEach(p => {
+                const dist = Math.hypot(p.x - localPlayer.x, p.y - localPlayer.y);
+                if (dist < PLAYER_RADIUS + 15) {
+                    collectPowerup(p);
+                }
+            });
+        }
+
+        function checkObstacleCollision(x, y, radius = PLAYER_RADIUS) {
+            for (let o of OBSTACLES) {
+                // AABB vs Circle
+                const closestX = Math.max(o.x, Math.min(x, o.x + o.w));
+                const closestY = Math.max(o.y, Math.min(y, o.y + o.h));
+                const dx = x - closestX;
+                const dy = y - closestY;
+                if ((dx * dx + dy * dy) < (radius * radius)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function shoot() {
+            localPlayer.lastShot = Date.now();
+            
+            // Visual Spawn Local
+            spawnBullet(localPlayer.x, localPlayer.y, localPlayer.angle, currentUser.uid);
+            
+            // Network Sync Event
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            updateDoc(roomRef, {
+                [`players.${currentUser.uid}.lastShootAction`]: {
+                    angle: localPlayer.angle,
+                    time: Date.now()
+                }
+            });
+        }
+
+        function spawnBullet(x, y, angle, ownerId) {
+            // Start bullet slightly outside player
+            const startX = x + Math.cos(angle) * (PLAYER_RADIUS + 10);
+            const startY = y + Math.sin(angle) * (PLAYER_RADIUS + 10);
+            
+            bullets.push({
+                x: startX,
+                y: startY,
+                vx: Math.cos(angle) * BULLET_SPEED,
+                vy: Math.sin(angle) * BULLET_SPEED,
+                ownerId: ownerId
+            });
+        }
+
+        async function takeDamage(amount, attackerId) {
+            localPlayer.hp -= amount;
+            if (localPlayer.hp < 0) localPlayer.hp = 0;
+            
+            document.getElementById('hudHealthBar').style.width = `${localPlayer.hp}%`;
+            showMessage("-10 HP");
+
+            // Update my HP in cloud
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            
+            if (localPlayer.hp <= 0) {
+                // DEAD
+                showMessage("Wasted!", "black");
+                // Respawn Logic
+                setTimeout(() => {
+                    localPlayer.hp = 100;
+                    localPlayer.x = Math.random() * 600 + 100;
+                    localPlayer.y = Math.random() * 400 + 100;
+                    document.getElementById('hudHealthBar').style.width = `100%`;
+                }, 3000);
+                
+                // Give point to attacker (We write to their score field)
+                // Note: This relies on open rules.
+                await updateDoc(roomRef, {
+                    [`players.${currentUser.uid}.hp`]: 0,
+                    [`players.${attackerId}.score`]: increment(1)
+                });
+            } else {
+                await updateDoc(roomRef, {
+                    [`players.${currentUser.uid}.hp`]: localPlayer.hp
+                });
+            }
+        }
+
+        async function collectPowerup(p) {
+            // Optimistic Remove local
+            const idx = powerups.findIndex(x => x.id === p.id);
+            if (idx === -1) return;
+            powerups.splice(idx, 1);
+            
+            showMessage(p.type === 'coffee' ? "SPEED UP!" : "HEAL!", "orange");
+            
+            if (p.type === 'coffee') {
+                // Speed boost logic (not fully implemented in this simple loop, but visual feedback ok)
+            } else {
+                localPlayer.hp = Math.min(100, localPlayer.hp + 20);
+                document.getElementById('hudHealthBar').style.width = `${localPlayer.hp}%`;
+            }
+
+            // Sync Remove
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            const snap = await getDoc(roomRef);
+            if(snap.exists()) {
+                const list = snap.data().powerups || [];
+                const newList = list.filter(item => item.id !== p.id);
+                await updateDoc(roomRef, { powerups: newList });
+            }
+        }
+
+        // --- DRAWING ---
+        function draw() {
+            // Background
+            ctx.fillStyle = "#27272a"; // Zinc 800
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            // Grid
+            ctx.strokeStyle = "#3f3f46";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let x=0; x<=CANVAS_WIDTH; x+=100) { ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_HEIGHT); }
+            for(let y=0; y<=CANVAS_HEIGHT; y+=100) { ctx.moveTo(0,y); ctx.lineTo(CANVAS_WIDTH,y); }
+            ctx.stroke();
+
+            // Obstacles
+            ctx.shadowColor = "black";
+            ctx.shadowBlur = 10;
+            OBSTACLES.forEach(o => {
+                ctx.fillStyle = o.color;
+                ctx.fillRect(o.x, o.y, o.w, o.h);
+                // Top "Desk" look
+                ctx.fillStyle = "#6b7280";
+                ctx.fillRect(o.x+5, o.y+5, o.w-10, o.h-10);
+                // Papers
+                ctx.fillStyle = "white";
+                ctx.fillRect(o.x+15, o.y+10, 15, 20);
+            });
+            ctx.shadowBlur = 0;
+
+            // Powerups
+            powerups.forEach(p => {
+                ctx.font = "24px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(p.type === 'coffee' ? '☕' : '🍩', p.x, p.y + 10);
+            });
+
+            // Bullets
+            ctx.fillStyle = "#fff";
+            bullets.forEach(b => {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 6, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Players
+            Object.values(playersMap).forEach(p => {
+                // If me, use local pos for smoothness
+                const x = (p.id === currentUser.uid) ? localPlayer.x : p.x;
+                const y = (p.id === currentUser.uid) ? localPlayer.y : p.y;
+                const hp = (p.id === currentUser.uid) ? localPlayer.hp : (p.hp || 100);
+                const angle = (p.id === currentUser.uid) ? localPlayer.angle : (p.angle || 0);
+                
+                if (hp <= 0) return; // Don't draw dead
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+
+                // Body
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, PLAYER_RADIUS, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Hands (holding paper ball)
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(15, 10, 8, 0, Math.PI*2); // Right hand
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(15, -10, 8, 0, Math.PI*2); // Left hand
+                ctx.fill();
+
+                // Paper Ball (Weapon)
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(20, 10, 6, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
+
+                // Name & HP Bar (above rotated context)
+                ctx.fillStyle = "white";
+                ctx.font = "bold 12px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(p.name, x, y - 35);
+                
+                // HP Bar
+                ctx.fillStyle = "red";
+                ctx.fillRect(x - 20, y - 30, 40, 5);
+                ctx.fillStyle = "#22c55e";
+                ctx.fillRect(x - 20, y - 30, 40 * (hp/100), 5);
+            });
+
+            // Score update HUD
+            if (playersMap[currentUser.uid]) {
+                document.getElementById('hudScore').textContent = playersMap[currentUser.uid].score;
+            }
+        }
+        
+        async function finishGame(players) {
+            gameActive = false;
+            showScreen('results');
+            
+            // Find winner
+            players.sort((a,b) => b.score - a.score);
+            const winner = players[0];
+            
+            document.getElementById('winnerName').textContent = winner.name;
+            document.getElementById('winnerScore').textContent = winner.score;
+            
+            const myP = players.find(p => p.id === currentUser.uid);
+            document.getElementById('myResultScore').textContent = myP ? myP.score : 0;
+            
+            // Save permanent stats
+            if (myP) {
+                const userRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats');
+                await updateDoc(userRef, {
+                    xp: increment(myP.score * 10),
+                    wins: increment(winner.id === currentUser.uid ? 1 : 0),
+                    kills: increment(myP.score)
+                });
+            }
+        }
+
+        // --- INPUT HANDLING ---
+        // Keyboard
+        const keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; updateInputVector(); });
+        window.addEventListener('keyup', e => { keys[e.code] = false; updateInputVector(); });
+        
+        function updateInputVector() {
+            input.x = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
+            input.y = (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0) - (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0);
+        }
+
+        // Mouse
+        window.addEventListener('mousemove', e => {
+            input.mouseX = e.clientX;
+            input.mouseY = e.clientY;
+        });
+        window.addEventListener('mousedown', () => input.firing = true);
+        window.addEventListener('mouseup', () => input.firing = false);
+
+        // Touch / Joystick
+        const joyZone = document.getElementById('joystick-zone');
+        const joyKnob = document.getElementById('joystick-knob');
+        let joyTouchId = null;
+        let joyCenter = { x: 0, y: 0 };
+
+        joyZone.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            joyTouchId = touch.identifier;
+            const rect = joyZone.getBoundingClientRect();
+            joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+            moveJoystick(touch.clientX, touch.clientY);
+        }, {passive: false});
+
+        joyZone.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyTouchId) {
+                    moveJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                }
+            }
+        }, {passive: false});
+
+        joyZone.addEventListener('touchend', e => {
+            e.preventDefault();
+            joyKnob.style.transform = `translate(-50%, -50%)`;
+            input.x = 0; input.y = 0;
+            joyTouchId = null;
+        });
+
+        function moveJoystick(clientX, clientY) {
+            const dx = clientX - joyCenter.x;
+            const dy = clientY - joyCenter.y;
+            const dist = Math.min(40, Math.hypot(dx, dy));
+            const angle = Math.atan2(dy, dx);
+            
+            const kx = Math.cos(angle) * dist;
+            const ky = Math.sin(angle) * dist;
+            
+            joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+            
+            // Set input vector normalized
+            input.x = dx / 40;
+            input.y = dy / 40;
+        }
+
+        // Mobile Fire
+        const fireBtn = document.getElementById('mobile-fire-btn');
+        fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.firing = true; });
+        fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); input.firing = false; });
+
+    </script>
+</body>
+</html>
