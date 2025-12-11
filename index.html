@@ -2,228 +2,73 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Office Brawl: Deadline Defender</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Mayhem: Багатокористувацький Шутер</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Roboto', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
-        .game-font { font-family: 'Black Ops One', cursive; }
-        .hidden { display: none !important; }
-        
-        /* Joystick styles */
-        #joystick-zone {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 120px;
-            height: 120px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            display: none; /* Shown on mobile via JS logic ideally, or media query */
-            touch-action: none;
-        }
-        #joystick-knob {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-        
-        /* Mobile Fire Button */
-        #mobile-fire-btn {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 80px;
-            height: 80px;
-            background: rgba(239, 68, 68, 0.6);
-            border: 4px solid rgba(239, 68, 68, 0.8);
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: white;
-            user-select: none;
-        }
-        #mobile-fire-btn:active { background: rgba(239, 68, 68, 0.9); transform: scale(0.95); }
-
-        @media (hover: none) and (pointer: coarse) {
-            #joystick-zone, #mobile-fire-btn { display: flex; }
-        }
-    </style>
-</head>
-<body class="bg-zinc-900 text-white h-screen w-screen flex flex-col">
-
-    <!-- APP CONTAINER -->
-    <div id="app" class="relative w-full h-full max-w-5xl mx-auto flex flex-col">
-        
-        <!-- HEADER -->
-        <header class="bg-zinc-800 p-3 border-b border-zinc-700 flex justify-between items-center shadow-md z-10">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded bg-orange-600 flex items-center justify-center text-xl font-bold border-2 border-orange-400" id="userAvatar">?</div>
-                <div>
-                    <h1 id="userNameDisplay" class="font-bold text-lg text-orange-400 leading-none">Гість</h1>
-                    <div class="text-[10px] text-zinc-400 uppercase tracking-widest">Office Brawl</div>
-                </div>
-            </div>
-            <div class="text-right">
-                <div class="text-xs text-zinc-400">XP <span id="userXpDisplay" class="text-white font-bold">0</span></div>
-                <div class="flex gap-2 text-xs">
-                    <span class="text-green-400">Wins: <b id="winsDisplay">0</b></span>
-                    <span class="text-red-400">Kills: <b id="killsDisplay">0</b></span>
-                </div>
-            </div>
-        </header>
-
-        <!-- SCREENS -->
-        <main class="flex-grow relative flex items-center justify-center p-2 overflow-hidden">
-
-            <!-- 1. LOGIN -->
-            <div id="screen-login" class="w-full max-w-md bg-zinc-800 p-8 rounded-xl shadow-2xl border border-zinc-700 relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-500 to-red-600"></div>
-                <h2 class="text-4xl game-font text-center text-white mb-2">OFFICE<br><span class="text-orange-500">BRAWL</span></h2>
-                <p class="text-center text-zinc-400 text-sm mb-8">Deadline Defender Edition</p>
-                
-                <div class="space-y-4">
-                    <input type="text" id="nicknameInput" class="w-full bg-zinc-900 border border-zinc-600 rounded p-4 text-white text-center text-lg focus:border-orange-500 outline-none transition" placeholder="Твій позивний" maxlength="12">
-                    <button id="btnLogin" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded transition shadow-[0_4px_0_rgb(154,52,18)] active:shadow-none active:translate-y-1 uppercase tracking-wider">
-                        Увірватися в офіс
-                    </button>
-                </div>
-            </div>
-
-            <!-- 2. MAIN MENU -->
-            <div id="screen-menu" class="hidden w-full max-w-md space-y-4">
-                <div class="bg-zinc-800 p-6 rounded-xl border border-zinc-700 text-center shadow-xl">
-                    <h3 class="text-xl font-bold mb-6 text-orange-400">ГОЛОВНЕ МЕНЮ</h3>
-                    <div class="grid grid-cols-1 gap-4">
-                        <button id="btnCreateRoom" class="bg-green-600 hover:bg-green-700 py-4 rounded-lg font-bold shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-1 text-lg">
-                            СТВОРИТИ АРЕНУ
-                        </button>
-                        <button id="btnJoinMenu" class="bg-blue-600 hover:bg-blue-700 py-4 rounded-lg font-bold shadow-[0_4px_0_rgb(29,78,216)] active:shadow-none active:translate-y-1 text-lg">
-                            ЗНАЙТИ ГРУ
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. JOIN ROOM -->
-            <div id="screen-join" class="hidden w-full max-w-md bg-zinc-800 p-8 rounded-xl border border-zinc-700 text-center">
-                <h3 class="text-xl font-bold mb-4">Код Кімнати</h3>
-                <input type="text" id="roomCodeInput" class="w-full bg-zinc-900 border border-zinc-600 rounded p-4 text-center text-3xl tracking-[0.5em] font-mono uppercase mb-6 focus:border-blue-500 outline-none" placeholder="XXXX" maxlength="4">
-                <div class="grid grid-cols-2 gap-3">
-                    <button id="btnBackToMenu" class="bg-zinc-600 hover:bg-zinc-500 py-3 rounded">Назад</button>
-                    <button id="btnJoinRoom" class="bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold">В Бій!</button>
-                </div>
-            </div>
-
-            <!-- 4. LOBBY -->
-            <div id="screen-lobby" class="hidden w-full max-w-lg bg-zinc-800 p-6 rounded-xl border border-zinc-700 shadow-2xl">
-                <div class="flex justify-between items-end mb-6 border-b border-zinc-700 pb-4">
-                    <div>
-                        <div class="text-xs text-zinc-400">АРЕНА</div>
-                        <div id="lobbyCode" class="text-3xl font-mono text-orange-500 font-bold tracking-wider">----</div>
-                    </div>
-                    <div id="lobbyCount" class="bg-zinc-700 px-3 py-1 rounded text-sm font-mono">0/6</div>
-                </div>
-                
-                <div class="mb-8">
-                    <h4 class="text-xs text-zinc-400 uppercase mb-3">Бійці в лобі:</h4>
-                    <ul id="lobbyPlayerList" class="space-y-2"></ul>
-                </div>
-
-                <div class="flex gap-3">
-                    <button id="btnLeaveLobby" class="px-4 py-3 bg-red-900/50 hover:bg-red-900 text-red-200 rounded">Вийти</button>
-                    <button id="btnStartGame" class="flex-1 bg-green-600 hover:bg-green-700 font-bold py-3 rounded disabled:opacity-50 disabled:grayscale transition shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-1">
-                        РОЗПОЧАТИ БІЙ
-                    </button>
-                </div>
-                <p id="lobbyHostMsg" class="text-xs text-center text-zinc-500 mt-3 hidden">Чекаємо хоста...</p>
-            </div>
-
-            <!-- 5. GAME CANVAS -->
-            <div id="screen-game" class="hidden w-full h-full relative flex flex-col items-center justify-center bg-zinc-900">
-                
-                <!-- HUD -->
-                <div class="absolute top-2 left-0 w-full px-4 flex justify-between items-start pointer-events-none z-10">
-                    <!-- Health -->
-                    <div class="bg-zinc-900/80 p-2 rounded border border-zinc-600 backdrop-blur-sm">
-                        <div class="text-[10px] text-zinc-400 mb-1">HP</div>
-                        <div class="w-32 h-4 bg-zinc-700 rounded-sm overflow-hidden border border-zinc-600">
-                            <div id="hudHealthBar" class="h-full bg-green-500 transition-all duration-200" style="width: 100%"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Timer & Score -->
-                    <div class="flex flex-col items-end gap-2">
-                        <div class="bg-zinc-900/80 px-4 py-2 rounded border border-zinc-600 backdrop-blur-sm">
-                            <span id="gameTimer" class="font-mono text-2xl font-bold text-white">60</span>
-                        </div>
-                        <div class="bg-zinc-900/80 px-3 py-1 rounded border border-zinc-600 backdrop-blur-sm text-yellow-400 font-bold">
-                            <span id="hudScore">0</span> pts
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Messages -->
-                <div id="gameMessage" class="absolute top-1/4 left-1/2 -translate-x-1/2 text-2xl font-bold text-red-500 pointer-events-none drop-shadow-lg opacity-0 transition-opacity z-20 whitespace-nowrap">
-                    HIT!
-                </div>
-
-                <canvas id="gameCanvas" width="800" height="600" class="bg-[#1a1a1a] shadow-2xl cursor-crosshair touch-none max-w-full max-h-full border-4 border-zinc-700 rounded-lg"></canvas>
-
-                <!-- Mobile Controls -->
-                <div id="joystick-zone"><div id="joystick-knob"></div></div>
-                <div id="mobile-fire-btn">FIRE</div>
-
-                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-zinc-500 text-[10px] pointer-events-none hidden md:block">
-                    WASD = Рух | MOUSE = Приціл | CLICK = Вогонь
-                </div>
-            </div>
-
-            <!-- 6. RESULTS -->
-            <div id="screen-results" class="hidden w-full max-w-md bg-zinc-800 p-8 rounded-xl border border-zinc-700 text-center z-50 shadow-2xl">
-                <h2 class="text-4xl game-font text-white mb-6">MATCH END</h2>
-                
-                <div class="bg-zinc-900 p-6 rounded-lg border border-zinc-600 mb-6">
-                    <div class="text-zinc-400 text-sm uppercase tracking-widest mb-2">Переможець</div>
-                    <div id="winnerName" class="text-3xl font-bold text-orange-500 mb-1">---</div>
-                    <div class="text-sm text-white">Score: <span id="winnerScore" class="font-mono text-yellow-400">0</span></div>
-                </div>
-
-                <div class="flex justify-between items-center bg-zinc-700/50 p-3 rounded mb-6 text-sm">
-                    <span>Твій результат:</span>
-                    <span id="myResultScore" class="font-bold text-white">0</span>
-                </div>
-
-                <button id="btnBackToLobby" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded shadow-[0_4px_0_rgb(29,78,216)] active:shadow-none active:translate-y-1">
-                    В МЕНЮ
-                </button>
-            </div>
-
-        </main>
-    </div>
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
-
     <script type="module">
+        // Імпорти Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyBu9M5MDiaWJWJXFtoOpK--KZXKRtTFZt0",
+        // Глобальні змінні
+        let app;
+        let db;
+        let auth;
+        let userId = null; // Початково null, поки користувач не увійде
+        let userName = 'AnonymousPlayer';
+        let gameRoomId = null;
+        let playerRef = null;
+        let roomRef = null;
+        let userProfileRef = null; // Нова посилання на постійний профіль
+        let isHost = false;
+        let players = {};
+        let gameState = 'lobby'; // 'lobby', 'playing', 'finished'
+        let bullets = [];
+        let canvas, ctx;
+        let lastUpdateTime = 0;
+        const FPS = 60;
+        const FRAME_TIME = 1000 / FPS;
+
+        // Конфігурація гри
+        const GRID_SIZE = 5;
+        const TILE_SIZE = 100;
+        const PLAYER_SIZE = 30;
+        const BULLET_SPEED = 10;
+        const PLAYER_SPEED = 5;
+        const MAX_HP = 100;
+        const GAME_DURATION_SECONDS = 90;
+        let timeRemaining = GAME_DURATION_SECONDS;
+
+        // Об'єкти на карті (перешкоди та монети)
+        const obstacles = [
+            { x: 1, y: 1, type: 'table' },
+            { x: 3, y: 1, type: 'table' },
+            { x: 1, y: 3, type: 'table' },
+            { x: 3, y: 3, type: 'table' }
+        ];
+
+        let coins = [
+            { id: 'coin1', x: 0.5, y: 0.5, collected: false },
+            { id: 'coin2', x: 4.5, y: 0.5, collected: false },
+            { id: 'coin3', x: 0.5, y: 4.5, collected: false },
+            { id: 'coin4', x: 4.5, y: 4.5, collected: false }
+        ];
+
+        // Керування рухом
+        const inputState = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+
+        // --- Hardcoded Firebase Config (ЗАПИТАНО КОРИСТУВАЧЕМ) ---
+        // !!! УВАГА: Якщо ви завантажуєте цей код на GitHub, ЦІ КЛЮЧІ БУДУТЬ ПУБЛІЧНИМИ.
+        // Це СТВОРЮЄ РИЗИК БЕЗПЕКИ для вашого проєкту Firebase.
+        const HARDCODED_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyBu9M5MDiaWJXFtoOpK--KZXKRtTFZt0",
             authDomain: "planer-97eb1.firebaseapp.com",
             projectId: "planer-97eb1",
             storageBucket: "planer-97eb1.firebasestorage.app",
@@ -231,693 +76,1183 @@
             appId: "1:322073132266:web:2a1e39b188d7567a31ab93",
             measurementId: "G-9304LH3F99"
         };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-office-brawl';
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // -----------------------------------------------------------
 
-        // --- CONSTANTS ---
-        const CANVAS_WIDTH = 800;
-        const CANVAS_HEIGHT = 600;
-        const PLAYER_RADIUS = 20;
-        const BULLET_SPEED = 12;
-        const PLAYER_SPEED = 5;
-        const FIRE_COOLDOWN = 400; // ms
-        const MAX_HP = 100;
-        const GAME_DURATION = 90; // 90 sec
-        
-        // Colors
-        const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-        
-        // Obstacles (Desks)
-        const OBSTACLES = [
-            { x: 150, y: 150, w: 100, h: 60, color: '#4b5563' },
-            { x: 550, y: 150, w: 100, h: 60, color: '#4b5563' },
-            { x: 150, y: 390, w: 100, h: 60, color: '#4b5563' },
-            { x: 550, y: 390, w: 100, h: 60, color: '#4b5563' },
-            { x: 350, y: 275, w: 100, h: 50, color: '#374151' } // Center desk
-        ];
 
-        // --- STATE ---
-        let currentUser = null;
-        let userData = null;
-        let currentRoomId = null;
-        let isHost = false;
-        let gameActive = false;
-        
-        // Game Logic State
-        let localPlayer = { x: 400, y: 300, hp: 100, angle: 0, lastShot: 0 };
-        let input = { x: 0, y: 0, firing: false, mouseX: 0, mouseY: 0 };
-        let bullets = []; // { x, y, vx, vy, ownerId }
-        let powerups = []; // { x, y, type, id }
-        let playersMap = {}; // sync data
-        let remoteShootingEvents = {}; // Track last shot timestamp to spawn bullets
-        
-        // Refs
-        let roomUnsubscribe = null;
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // --- Firebase та Ініціалізація ---
 
-        // --- AUTH ---
-        async function initApp() {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        }
+        const initializeFirebase = async () => {
+            try {
+                // Використовуємо ID програми Canvas для шляхів Firestore.
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'stats');
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    userData = snap.data();
-                    updateHeader();
-                    showScreen('menu');
-                } else {
-                    showScreen('login');
+                // Використовуємо фіксовану конфігурацію, надану користувачем.
+                const firebaseConfig = HARDCODED_FIREBASE_CONFIG; 
+
+                if (!firebaseConfig.apiKey) {
+                    console.error("Firebase config is invalid. Cannot initialize.");
+                    document.getElementById('game-status').textContent = "Помилка: Конфігурація Firebase недійсна.";
+                    return;
                 }
+
+                // Ініціалізація
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('error');
+
+                // Початкова авторизація через токен (для середовища Canvas)
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    // Якщо Canvas не надав токен, входимо анонімно
+                    await signInAnonymously(auth);
+                }
+
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        // Слідкуємо, щоб використовувався appId Canvas для безпечного шляху
+                        userProfileRef = doc(db, 'artifacts', appId, 'users', userId, 'user_profile', 'data');
+                        document.getElementById('user-id-display').textContent = `ID: ${userId}`;
+                        document.getElementById('auth-status').textContent = `Увійшов як: ${user.email || 'Користувач'}`;
+                        document.getElementById('auth-status').classList.remove('text-red-400');
+                        document.getElementById('auth-status').classList.add('text-green-400');
+                        document.getElementById('auth-controls').classList.add('hidden'); // Приховати кнопки входу/виходу
+                        document.getElementById('logout-btn').classList.remove('hidden');
+
+                        // Завантаження або створення постійного профілю
+                        await loadOrCreateUserProfile(user.displayName);
+
+                        document.getElementById('game-status').textContent = "Авторизація успішна. Готовність до гри.";
+                    } else {
+                        userId = null;
+                        userName = 'AnonymousPlayer';
+                        document.getElementById('auth-status').textContent = "Не увійшов. Увійдіть для збереження прогресу.";
+                        document.getElementById('auth-status').classList.remove('text-green-400');
+                        document.getElementById('auth-status').classList.add('text-red-400');
+                        document.getElementById('auth-controls').classList.remove('hidden');
+                        document.getElementById('logout-btn').classList.add('hidden');
+                        document.getElementById('user-name-input').value = userName;
+                        document.getElementById('game-status').textContent = "Очікування входу.";
+                        resetGameUI(); // Скидання інтерфейсу, якщо користувач вийшов
+                    }
+                });
+            } catch (error) {
+                console.error("Помилка ініціалізації Firebase:", error);
+                document.getElementById('game-status').textContent = `Помилка ініціалізації: ${error.message}`;
             }
-        });
-
-        initApp();
-
-        // --- UI ---
-        const screens = {
-            login: document.getElementById('screen-login'),
-            menu: document.getElementById('screen-menu'),
-            join: document.getElementById('screen-join'),
-            lobby: document.getElementById('screen-lobby'),
-            game: document.getElementById('screen-game'),
-            results: document.getElementById('screen-results')
         };
 
-        function showScreen(name) {
-            Object.values(screens).forEach(el => el.classList.add('hidden'));
-            screens[name].classList.remove('hidden');
-        }
+        const loadOrCreateUserProfile = async (googleDisplayName) => {
+            if (!userId || !userProfileRef) return;
 
-        function updateHeader() {
-            if(!userData) return;
-            document.getElementById('userNameDisplay').textContent = userData.nickname;
-            document.getElementById('userAvatar').textContent = userData.nickname.charAt(0).toUpperCase();
-            document.getElementById('userXpDisplay').textContent = userData.xp || 0;
-            document.getElementById('winsDisplay').textContent = userData.wins || 0;
-            document.getElementById('killsDisplay').textContent = userData.kills || 0;
-        }
+            const profileSnap = await getDoc(userProfileRef);
 
-        function showMessage(text, color = 'red') {
-            const el = document.getElementById('gameMessage');
-            el.textContent = text;
-            el.style.color = color;
-            el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 1000);
-        }
+            if (profileSnap.exists()) {
+                const profile = profileSnap.data();
+                userName = profile.name || googleDisplayName || `Player${Math.floor(Math.random() * 900) + 100}`;
+                // Тут можна завантажити highscore, якщо він є
+                document.getElementById('user-name-input').value = userName;
+            } else {
+                // Створення нового профілю
+                userName = googleDisplayName || `Player${Math.floor(Math.random() * 900) + 100}`;
+                await setDoc(userProfileRef, {
+                    name: userName,
+                    createdAt: Date.now(),
+                    highScore: 0,
+                });
+                document.getElementById('user-name-input').value = userName;
+            }
+        };
 
-        // --- MENU EVENTS ---
-        document.getElementById('btnLogin').addEventListener('click', async () => {
-            const nick = document.getElementById('nicknameInput').value.trim();
-            if (!nick) return;
-            const data = { nickname: nick, xp: 0, wins: 0, kills: 0 };
-            await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats'), data);
-            userData = data;
-            updateHeader();
-            showScreen('menu');
-        });
+        const signInWithGoogle = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                // Запобігаємо спливаючим вікнам, якщо вікно закрито або не сфокусовано
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged обробить подальше оновлення UI
+            } catch (error) {
+                console.error("Помилка входу через Google:", error);
+                document.getElementById('game-status').textContent = `Помилка входу: ${error.message}`;
+            }
+        };
 
-        document.getElementById('btnCreateRoom').addEventListener('click', async () => {
-            const code = Math.random().toString(36).substr(2, 4).toUpperCase();
-            currentRoomId = code;
+        const handleSignOut = async () => {
+             try {
+                await signOut(auth);
+                // onAuthStateChanged обробить оновлення UI
+             } catch (error) {
+                console.error("Помилка виходу:", error);
+                document.getElementById('game-status').textContent = `Помилка виходу: ${error.message}`;
+             }
+        };
+
+        // --- Логіка Кімнати та Гравця (без змін, окрім перевірки userId) ---
+
+        const createGame = async () => {
+            if (!userId) {
+                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб створити гру.";
+                 return;
+            }
+
+            const newRoomId = crypto.randomUUID().substring(0, 8);
+            gameRoomId = newRoomId;
             isHost = true;
-            
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code), {
-                hostId: currentUser.uid,
-                status: 'waiting',
-                players: {
-                    [currentUser.uid]: {
-                        id: currentUser.uid,
-                        name: userData.nickname,
-                        color: COLORS[0],
-                        hp: 100,
-                        score: 0,
-                        x: 400,
-                        y: 300,
-                        ready: true
-                    }
-                },
-                powerups: []
-            });
-            enterLobby(code);
-        });
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId);
+            playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', userId);
 
-        document.getElementById('btnJoinMenu').addEventListener('click', () => showScreen('join'));
-        document.getElementById('btnBackToMenu').addEventListener('click', () => showScreen('menu'));
+            const initialPlayerState = {
+                id: userId,
+                name: userName,
+                x: 1 * TILE_SIZE + TILE_SIZE / 2,
+                y: 1 * TILE_SIZE + TILE_SIZE / 2,
+                hp: MAX_HP,
+                score: 0,
+                color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+                lastShot: Date.now(),
+                isAlive: true,
+                isReady: false
+            };
 
-        document.getElementById('btnJoinRoom').addEventListener('click', async () => {
-            const code = document.getElementById('roomCodeInput').value.toUpperCase();
-            if (code.length !== 4) return;
-            
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-            const snap = await getDoc(roomRef);
-            if (!snap.exists() || snap.data().status !== 'waiting') return alert('Недоступно');
-            
-            currentRoomId = code;
+            const initialRoomState = {
+                hostId: userId,
+                gameState: 'lobby',
+                coins: coins,
+                bullets: [],
+                timer: GAME_DURATION_SECONDS,
+                lastBulletId: 0,
+                updatedAt: Date.now()
+            };
+
+            await setDoc(roomRef, initialRoomState);
+            await setDoc(playerRef, initialPlayerState);
+
+            document.getElementById('room-id-display').textContent = gameRoomId;
+            document.getElementById('start-game-btn').classList.remove('hidden');
+            document.getElementById('leave-game-btn').classList.remove('hidden');
+            document.getElementById('game-controls').classList.remove('hidden');
+            document.getElementById('lobby-controls').classList.add('hidden');
+            document.getElementById('name-entry').classList.add('hidden');
+            document.getElementById('game-status').textContent = `Створено кімнату: ${gameRoomId}. Ви - хост.`;
+
+            listenToRoom();
+        };
+
+        const joinGame = async () => {
+            if (!userId) {
+                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб приєднатися до гри.";
+                 return;
+            }
+            const joinId = document.getElementById('join-room-id').value.trim();
+            if (joinId.length !== 8) {
+                document.getElementById('game-status').textContent = "ID кімнати має бути 8 символів.";
+                return;
+            }
+            gameRoomId = joinId;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId);
+            playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', userId);
+
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) {
+                document.getElementById('game-status').textContent = "Кімната не знайдена або не існує.";
+                gameRoomId = null;
+                return;
+            }
+
+            const roomData = roomSnap.data();
+            if (roomData.gameState !== 'lobby') {
+                 document.getElementById('game-status').textContent = "Гра вже розпочата в цій кімнаті.";
+                 gameRoomId = null;
+                 return;
+            }
+
+            isHost = roomData.hostId === userId;
+
+            const initialPlayerState = {
+                id: userId,
+                name: userName,
+                x: 3 * TILE_SIZE + TILE_SIZE / 2,
+                y: 3 * TILE_SIZE + TILE_SIZE / 2,
+                hp: MAX_HP,
+                score: 0,
+                color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+                lastShot: Date.now(),
+                isAlive: true,
+                isReady: false
+            };
+
+            await setDoc(playerRef, initialPlayerState);
+
+            document.getElementById('room-id-display').textContent = gameRoomId;
+            document.getElementById('start-game-btn').classList.toggle('hidden', !isHost);
+            document.getElementById('leave-game-btn').classList.remove('hidden');
+            document.getElementById('game-controls').classList.remove('hidden');
+            document.getElementById('lobby-controls').classList.add('hidden');
+            document.getElementById('name-entry').classList.add('hidden');
+            document.getElementById('game-status').textContent = `Ви приєдналися до кімнати: ${gameRoomId}.`;
+
+            listenToRoom();
+        };
+
+        const leaveGame = async () => {
+            if (gameRoomId && userId) {
+                // Видалити гравця
+                await setDoc(playerRef, { isAlive: false, left: true }, { merge: true });
+            }
+            resetGameUI();
+        };
+
+        const resetGameUI = () => {
+            gameRoomId = null;
             isHost = false;
-            
-            const color = COLORS[Object.keys(snap.data().players).length % COLORS.length];
-            await updateDoc(roomRef, {
-                [`players.${currentUser.uid}`]: {
-                    id: currentUser.uid,
-                    name: userData.nickname,
-                    color: color,
-                    hp: 100,
-                    score: 0,
-                    x: Math.random() * 600 + 100,
-                    y: Math.random() * 400 + 100,
-                    ready: true
-                }
-            });
-            enterLobby(code);
-        });
-
-        document.getElementById('btnStartGame').addEventListener('click', async () => {
-            if(!isHost) return;
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), {
-                status: 'playing',
-                startTime: Date.now()
-            });
-        });
-
-        document.getElementById('btnLeaveLobby').addEventListener('click', () => {
-            if(roomUnsubscribe) roomUnsubscribe();
-            showScreen('menu');
-        });
-
-        document.getElementById('btnBackToLobby').addEventListener('click', () => showScreen('menu'));
-
-        // --- LOBBY & SYNC ---
-        function enterLobby(code) {
-            showScreen('lobby');
-            document.getElementById('lobbyCode').textContent = code;
-            
-            roomUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code), (snap) => {
-                if (!snap.exists()) return;
-                const data = snap.data();
-                
-                // Lobby UI
-                const players = Object.values(data.players || {});
-                document.getElementById('lobbyCount').textContent = `${players.length}/6`;
-                const list = document.getElementById('lobbyPlayerList');
-                list.innerHTML = players.map(p => 
-                    `<li class="flex items-center gap-2 bg-zinc-700/50 p-2 rounded border-l-4 border-[${p.color}]">
-                        <div class="w-3 h-3 rounded-full" style="background:${p.color}"></div>
-                        <span class="text-white font-bold">${p.name}</span>
-                        ${p.id === data.hostId ? '👑' : ''}
-                    </li>`
-                ).join('');
-
-                document.getElementById('btnStartGame').disabled = (currentUser.uid !== data.hostId);
-                
-                // Game Start
-                if (data.status === 'playing' && !gameActive) {
-                    startGame(data);
-                }
-                
-                // Sync Game Data
-                if (gameActive) {
-                    playersMap = data.players;
-                    powerups = data.powerups || [];
-                    
-                    // Sync Remote Shots
-                    players.forEach(p => {
-                        if (p.id === currentUser.uid) return;
-                        // If we see a newer shot timestamp than we have recorded, spawn bullet
-                        if (p.lastShootAction && (!remoteShootingEvents[p.id] || p.lastShootAction.time > remoteShootingEvents[p.id])) {
-                            remoteShootingEvents[p.id] = p.lastShootAction.time;
-                            spawnBullet(p.x, p.y, p.lastShootAction.angle, p.id);
-                        }
-                    });
-
-                    // Game Over
-                    if (data.status === 'finished') {
-                        finishGame(players);
-                    }
-                    
-                    // Timer
-                    if (data.startTime) {
-                        const elapsed = (Date.now() - data.startTime) / 1000;
-                        const left = Math.max(0, Math.ceil(GAME_DURATION - elapsed));
-                        document.getElementById('gameTimer').textContent = left;
-                        if (isHost && left <= 0) {
-                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { status: 'finished' });
-                        }
-                    }
-                }
-            });
-        }
-
-        // --- GAMEPLAY ---
-        function startGame(data) {
-            gameActive = true;
-            showScreen('game');
+            playerRef = null;
+            roomRef = null;
+            players = {};
+            gameState = 'lobby';
             bullets = [];
-            remoteShootingEvents = {};
-            
-            // Reset local pos
-            const myData = data.players[currentUser.uid];
-            localPlayer = { ...localPlayer, x: myData.x, y: myData.y, hp: 100, score: 0 };
-            
-            // Start Loop
-            requestAnimationFrame(gameLoop);
-            
-            // Start Network Loop
-            const interval = setInterval(() => {
-                if (!gameActive) { clearInterval(interval); return; }
-                syncPlayer();
-                if (isHost && Math.random() < 0.02 && powerups.length < 3) spawnPowerup(); 
-            }, 100);
-        }
+            timeRemaining = GAME_DURATION_SECONDS;
 
-        async function syncPlayer() {
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            // We just update our x, y, hp, angle
-            const update = {
-                [`players.${currentUser.uid}.x`]: localPlayer.x,
-                [`players.${currentUser.uid}.y`]: localPlayer.y,
-                [`players.${currentUser.uid}.angle`]: localPlayer.angle,
-                [`players.${currentUser.uid}.hp`]: localPlayer.hp
-            };
-            await updateDoc(roomRef, update);
-        }
+            document.getElementById('room-id-display').textContent = '—';
+            document.getElementById('start-game-btn').classList.add('hidden');
+            document.getElementById('leave-game-btn').classList.add('hidden');
+            document.getElementById('game-controls').classList.add('hidden');
+            document.getElementById('lobby-controls').classList.remove('hidden');
+            // document.getElementById('name-entry').classList.remove('hidden'); // Залишаємо прихованим, якщо користувач увійшов
+            document.getElementById('leaderboard').innerHTML = '';
+            document.getElementById('timer-display').textContent = '01:30';
+            document.getElementById('ready-toggle-btn').textContent = 'Готовий (Немає)';
 
-        async function spawnPowerup() {
-            const type = Math.random() > 0.5 ? 'coffee' : 'donut';
-            const newPower = {
-                x: Math.random() * (CANVAS_WIDTH - 60) + 30,
-                y: Math.random() * (CANVAS_HEIGHT - 60) + 30,
-                type: type,
-                id: Date.now()
-            };
-            // Host pushes new powerup
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            const snap = await getDoc(roomRef);
-            if(snap.exists()) {
-                const list = snap.data().powerups || [];
-                list.push(newPower);
-                updateDoc(roomRef, { powerups: list });
-            }
-        }
+            // Припинити слухання
+            if (typeof stopListeningPlayers === 'function') stopListeningPlayers();
+            if (typeof stopListeningRoom === 'function') stopListeningRoom();
 
-        // --- CORE LOOP ---
-        function gameLoop() {
-            if (!gameActive) return;
-            
-            updateLogic();
             draw();
-            requestAnimationFrame(gameLoop);
-        }
+        };
 
-        function updateLogic() {
-            // 1. Movement
-            let dx = input.x;
-            let dy = input.y;
-            
-            // Normalize speed
-            if (dx !== 0 || dy !== 0) {
-                const len = Math.sqrt(dx*dx + dy*dy);
-                dx = (dx / len) * PLAYER_SPEED;
-                dy = (dy / len) * PLAYER_SPEED;
+        // Слухачі змін у Firestore (логіка без змін)
+        let stopListeningPlayers = () => {};
+        let stopListeningRoom = () => {};
+
+        const listenToRoom = () => {
+            if (!gameRoomId) return;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            stopListeningRoom = onSnapshot(roomRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const roomData = docSnap.data();
+
+                    if (roomData.gameState === 'playing' && gameState !== 'playing' && isHost) {
+                        startGameTimer();
+                    }
+
+                    gameState = roomData.gameState;
+                    coins = roomData.coins || coins;
+                    bullets = roomData.bullets || [];
+                    timeRemaining = roomData.timer || GAME_DURATION_SECONDS;
+
+                    if (gameState === 'finished') {
+                        document.getElementById('game-status').textContent = 'Гра завершена! Перегляньте результати.';
+                        clearInterval(gameTimerInterval);
+                        // Оновлення high score після завершення
+                        updateHighScore();
+                    }
+
+                    const minutes = Math.floor(timeRemaining / 60);
+                    const seconds = timeRemaining % 60;
+                    document.getElementById('timer-display').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                } else {
+                    document.getElementById('game-status').textContent = "Кімната гри була видалена.";
+                    resetGameUI();
+                }
+            });
+
+            const playersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players');
+            stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const player = change.doc.data();
+                    if (player.left) {
+                        delete players[player.id];
+                    } else {
+                        players[player.id] = player;
+                    }
+                });
+                updateLeaderboard();
+                draw();
+                if (isHost && gameState === 'lobby') {
+                    checkAllReady();
+                }
+            });
+        };
+
+        // --- Нова функція: Оновлення постійного High Score ---
+        const updateHighScore = async () => {
+             const myPlayer = players[userId];
+             if (!myPlayer || !userProfileRef) return;
+
+             const currentScore = myPlayer.score;
+
+             const profileSnap = await getDoc(userProfileRef);
+             if (profileSnap.exists()) {
+                 const currentHighScore = profileSnap.data().highScore || 0;
+                 if (currentScore > currentHighScore) {
+                     await updateDoc(userProfileRef, {
+                         highScore: currentScore,
+                         lastPlayed: Date.now()
+                     });
+                     console.log(`Оновлено High Score: ${currentScore}`);
+                     document.getElementById('game-status').textContent = `Гра завершена! Новий High Score: ${currentScore}!`;
+                 }
+             }
+        };
+
+        // --- Функції керування та гри (без змін) ---
+        const checkAllReady = () => {
+            const allPlayers = Object.values(players);
+            const readyPlayers = allPlayers.filter(p => p.isReady).length;
+            const totalPlayers = allPlayers.length;
+
+            if (totalPlayers >= 2 && readyPlayers === totalPlayers) {
+                document.getElementById('start-game-btn').disabled = false;
+                document.getElementById('start-game-btn').textContent = "РОЗПОЧАТИ БІЙ";
+            } else {
+                document.getElementById('start-game-btn').disabled = true;
+                document.getElementById('start-game-btn').textContent = `Готові: ${readyPlayers}/${totalPlayers} (Потрібно ≥2)`;
             }
-            
-            // Proposed new pos
-            let nextX = localPlayer.x + dx;
-            let nextY = localPlayer.y + dy;
-            
-            // Collision with Walls
-            nextX = Math.max(PLAYER_RADIUS, Math.min(CANVAS_WIDTH - PLAYER_RADIUS, nextX));
-            nextY = Math.max(PLAYER_RADIUS, Math.min(CANVAS_HEIGHT - PLAYER_RADIUS, nextY));
-            
-            // Collision with Obstacles
-            if (!checkObstacleCollision(nextX, nextY)) {
-                localPlayer.x = nextX;
-                localPlayer.y = nextY;
+        };
+
+        const toggleReady = async () => {
+            if (!playerRef || !userId) return;
+            const myPlayer = players[userId];
+            if (myPlayer) {
+                const newReadyState = !myPlayer.isReady;
+                await updateDoc(playerRef, { isReady: newReadyState });
+                document.getElementById('ready-toggle-btn').textContent = newReadyState ? 'Готовий (ТАК)' : 'Готовий (Немає)';
+            }
+        };
+
+
+        const startGame = async () => {
+            if (!isHost || gameState !== 'lobby') return;
+
+            const allPlayers = Object.values(players);
+            if (allPlayers.length < 2 || allPlayers.some(p => !p.isReady)) {
+                document.getElementById('game-status').textContent = "Не всі гравці готові або недостатньо гравців (потрібно ≥2).";
+                return;
             }
 
-            // 2. Aim Angle
-            // Calculate angle based on mouse or joystick
-            // If using mouse (desktop):
-            if (input.mouseX !== 0 || input.mouseY !== 0) {
-                 // Get canvas rect for offset
-                 const rect = canvas.getBoundingClientRect();
-                 // Scale factor if canvas is resized by CSS
-                 const scaleX = canvas.width / rect.width;
-                 const scaleY = canvas.height / rect.height;
-                 
-                 const mx = (input.mouseX - rect.left) * scaleX;
-                 const my = (input.mouseY - rect.top) * scaleY;
-                 localPlayer.angle = Math.atan2(my - localPlayer.y, mx - localPlayer.x);
+            await updateDoc(roomRef, {
+                gameState: 'playing',
+                updatedAt: Date.now()
+            });
+
+            startGameTimer();
+            gameLoop();
+        };
+
+        let gameTimerInterval;
+        const startGameTimer = () => {
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            let startTime = Date.now();
+
+            gameTimerInterval = setInterval(async () => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                let newTimeRemaining = GAME_DURATION_SECONDS - elapsed;
+
+                if (newTimeRemaining <= 0) {
+                    newTimeRemaining = 0;
+                    clearInterval(gameTimerInterval);
+                    await updateDoc(roomRef, { gameState: 'finished', timer: 0, updatedAt: Date.now() });
+                }
+
+                if (newTimeRemaining > 0) {
+                    await updateDoc(roomRef, { timer: newTimeRemaining, updatedAt: Date.now() });
+                }
+            }, 1000);
+        };
+
+        //... [updatePlayerPosition, updateBullets, handleHit, collectCoin, fireBullet, listenToBulletQueue, gameLoop, draw - залишаються без змін]
+
+        const updatePlayerPosition = (delta) => {
+            const player = players[userId];
+            if (!player || gameState !== 'playing' || !player.isAlive) return;
+
+            let newX = player.x;
+            let newY = player.y;
+
+            // Розрахунок руху
+            if (inputState.up) newY -= PLAYER_SPEED * delta;
+            if (inputState.down) newY += PLAYER_SPEED * delta;
+            if (inputState.left) newX -= PLAYER_SPEED * delta;
+            if (inputState.right) newX += PLAYER_SPEED * delta;
+
+            const halfSize = PLAYER_SIZE / 2;
+
+            // Обмеження поля (стінки)
+            newX = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newX));
+            newY = Math.max(halfSize, Math.min(GRID_SIZE * TILE_SIZE - halfSize, newY));
+
+            // Перевірка на зіткнення з перешкодами
+            let collided = false;
+            for (const obstacle of obstacles) {
+                const ox = obstacle.x * TILE_SIZE + TILE_SIZE / 2;
+                const oy = obstacle.y * TILE_SIZE + TILE_SIZE / 2;
+                const o_half_size = TILE_SIZE / 2;
+
+                if (
+                    newX + halfSize > ox - o_half_size &&
+                    newX - halfSize < ox + o_half_size &&
+                    newY + halfSize > oy - o_half_size &&
+                    newY - halfSize < oy + o_half_size
+                ) {
+                    collided = true;
+                    let testX = player.x;
+                    let testY = newY;
+                    let blockedY = false;
+                    for (const o of obstacles) {
+                         const ox_test = o.x * TILE_SIZE + TILE_SIZE / 2;
+                         const oy_test = o.y * TILE_SIZE + TILE_SIZE / 2;
+                         if (testX + halfSize > ox_test - o_half_size && testX - halfSize < ox_test + o_half_size && testY + halfSize > oy_test - o_half_size && testY - halfSize < oy_test + o_half_size) {
+                             blockedY = true;
+                             break;
+                         }
+                    }
+
+                    if (!blockedY) {
+                        newX = player.x;
+                        newY = testY;
+                        collided = false;
+                        break;
+                    }
+
+                    let testX2 = newX;
+                    let testY2 = player.y;
+                    let blockedX = false;
+                    for (const o of obstacles) {
+                         const ox_test = o.x * TILE_SIZE + TILE_SIZE / 2;
+                         const oy_test = o.y * TILE_SIZE + TILE_SIZE / 2;
+                         if (testX2 + halfSize > ox_test - o_half_size && testX2 - halfSize < ox_test + o_half_size && testY2 + halfSize > oy_test - o_half_size && testY2 - halfSize < oy_test + o_half_size) {
+                             blockedX = true;
+                             break;
+                         }
+                    }
+
+                    if (!blockedX) {
+                        newX = testX2;
+                        newY = player.y;
+                        collided = false;
+                        break;
+                    }
+
+                    newX = player.x;
+                    newY = player.y;
+                }
             }
 
-            // 3. Firing
-            if (input.firing && Date.now() - localPlayer.lastShot > FIRE_COOLDOWN && localPlayer.hp > 0) {
-                shoot();
+
+            // Перевірка на зіткнення з монетами
+            for (const coin of coins) {
+                if (coin.collected) continue;
+
+                const coinX = coin.x * TILE_SIZE;
+                const coinY = coin.y * TILE_SIZE;
+
+                if (
+                    newX + halfSize > coinX - 10 &&
+                    newX - halfSize < coinX + 10 &&
+                    newY + halfSize > coinY - 10 &&
+                    newY - halfSize < coinY + 10
+                ) {
+                    if (isHost) {
+                        collectCoin(coin.id, userId);
+                    }
+                }
             }
 
-            // 4. Bullets Update
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                const b = bullets[i];
-                b.x += b.vx;
-                b.y += b.vy;
-                
-                // Wall Remove
-                if (b.x < 0 || b.x > CANVAS_WIDTH || b.y < 0 || b.y > CANVAS_HEIGHT || checkObstacleCollision(b.x, b.y, 5)) {
-                    bullets.splice(i, 1);
+            if (newX !== player.x || newY !== player.y) {
+                updateDoc(playerRef, {
+                    x: newX,
+                    y: newY,
+                    updatedAt: Date.now()
+                }).catch(e => console.error("Помилка оновлення позиції:", e));
+            }
+        };
+
+        const updateBullets = () => {
+            if (!isHost || gameState !== 'playing') return;
+
+            const newBullets = [];
+            let hitPlayers = false;
+
+            for (const bullet of bullets) {
+                if (!bullet.isAlive) continue;
+
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+
+                // Перевірка зіткнення зі стінами
+                if (
+                    bullet.x < 0 || bullet.x > GRID_SIZE * TILE_SIZE ||
+                    bullet.y < 0 || bullet.y > GRID_SIZE * TILE_SIZE
+                ) {
+                    bullet.isAlive = false;
                     continue;
                 }
-                
-                // Hit Detection (Trust Victim)
-                // If I am hit by a bullet that is NOT mine
-                if (b.ownerId !== currentUser.uid && localPlayer.hp > 0) {
-                    const dist = Math.hypot(b.x - localPlayer.x, b.y - localPlayer.y);
-                    if (dist < PLAYER_RADIUS + 5) {
-                        // HIT!
-                        takeDamage(10, b.ownerId);
-                        bullets.splice(i, 1);
-                        // Visual Shake?
+
+                // Перевірка зіткнення з перешкодами
+                let hitObstacle = false;
+                for (const obstacle of obstacles) {
+                    const ox = obstacle.x * TILE_SIZE + TILE_SIZE / 2;
+                    const oy = obstacle.y * TILE_SIZE + TILE_SIZE / 2;
+                    const o_half_size = TILE_SIZE / 2;
+
+                    if (
+                        bullet.x > ox - o_half_size && bullet.x < ox + o_half_size &&
+                        bullet.y > oy - o_half_size && bullet.y < oy + o_half_size
+                    ) {
+                        bullet.isAlive = false;
+                        hitObstacle = true;
+                        break;
                     }
                 }
+                if (hitObstacle) continue;
+
+                // Перевірка зіткнення з гравцями
+                for (const id in players) {
+                    const target = players[id];
+                    if (target.id === bullet.shooterId || !target.isAlive) continue;
+
+                    const dist = Math.sqrt(
+                        (bullet.x - target.x) ** 2 + (bullet.y - target.y) ** 2
+                    );
+
+                    if (dist < PLAYER_SIZE / 2 + 5) {
+                        bullet.isAlive = false;
+                        hitPlayers = true;
+
+                        handleHit(target.id, bullet.shooterId);
+                        break;
+                    }
+                }
+
+                if (bullet.isAlive) {
+                    newBullets.push(bullet);
+                }
             }
-            
-            // 5. Powerups
-            powerups.forEach(p => {
-                const dist = Math.hypot(p.x - localPlayer.x, p.y - localPlayer.y);
-                if (dist < PLAYER_RADIUS + 15) {
-                    collectPowerup(p);
-                }
-            });
-        }
 
-        function checkObstacleCollision(x, y, radius = PLAYER_RADIUS) {
-            for (let o of OBSTACLES) {
-                // AABB vs Circle
-                const closestX = Math.max(o.x, Math.min(x, o.x + o.w));
-                const closestY = Math.max(o.y, Math.min(y, o.y + o.h));
-                const dx = x - closestX;
-                const dy = y - closestY;
-                if ((dx * dx + dy * dy) < (radius * radius)) {
-                    return true;
-                }
+            if (bullets.length !== newBullets.length || hitPlayers) {
+                updateDoc(roomRef, {
+                    bullets: newBullets.map(b => ({
+                        x: b.x, y: b.y, vx: b.vx, vy: b.vy, shooterId: b.shooterId, id: b.id
+                    })),
+                    lastBulletId: bullets.reduce((max, b) => Math.max(max, b.id || 0), 0) + 1,
+                    updatedAt: Date.now()
+                }).catch(e => console.error("Помилка оновлення куль:", e));
+
             }
-            return false;
-        }
+        };
 
-        function shoot() {
-            localPlayer.lastShot = Date.now();
-            
-            // Visual Spawn Local
-            spawnBullet(localPlayer.x, localPlayer.y, localPlayer.angle, currentUser.uid);
-            
-            // Network Sync Event
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            updateDoc(roomRef, {
-                [`players.${currentUser.uid}.lastShootAction`]: {
-                    angle: localPlayer.angle,
-                    time: Date.now()
-                }
-            });
-        }
+        const handleHit = async (targetId, shooterId) => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const targetRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', targetId);
+            const shooterRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', shooterId);
 
-        function spawnBullet(x, y, angle, ownerId) {
-            // Start bullet slightly outside player
-            const startX = x + Math.cos(angle) * (PLAYER_RADIUS + 10);
-            const startY = y + Math.sin(angle) * (PLAYER_RADIUS + 10);
-            
-            bullets.push({
-                x: startX,
-                y: startY,
-                vx: Math.cos(angle) * BULLET_SPEED,
-                vy: Math.sin(angle) * BULLET_SPEED,
-                ownerId: ownerId
-            });
-        }
+            const targetSnap = await getDoc(targetRef);
+            if (!targetSnap.exists()) return;
 
-        async function takeDamage(amount, attackerId) {
-            localPlayer.hp -= amount;
-            if (localPlayer.hp < 0) localPlayer.hp = 0;
-            
-            document.getElementById('hudHealthBar').style.width = `${localPlayer.hp}%`;
-            showMessage("-10 HP");
+            const target = targetSnap.data();
+            if (!target.isAlive) return;
 
-            // Update my HP in cloud
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            
-            if (localPlayer.hp <= 0) {
-                // DEAD
-                showMessage("Wasted!", "black");
-                // Respawn Logic
-                setTimeout(() => {
-                    localPlayer.hp = 100;
-                    localPlayer.x = Math.random() * 600 + 100;
-                    localPlayer.y = Math.random() * 400 + 100;
-                    document.getElementById('hudHealthBar').style.width = `100%`;
+            let newHp = target.hp - 10;
+            let newIsAlive = true;
+            let scoreChange = 0;
+
+            if (newHp <= 0) {
+                newHp = 0;
+                newIsAlive = false;
+                scoreChange = 10;
+                setTimeout(async () => {
+                    await updateDoc(targetRef, {
+                        hp: MAX_HP,
+                        isAlive: true,
+                        x: 1 * TILE_SIZE + TILE_SIZE / 2,
+                        y: 1 * TILE_SIZE + TILE_SIZE / 2
+                    });
                 }, 3000);
-                
-                // Give point to attacker (We write to their score field)
-                // Note: This relies on open rules.
-                await updateDoc(roomRef, {
-                    [`players.${currentUser.uid}.hp`]: 0,
-                    [`players.${attackerId}.score`]: increment(1)
-                });
             } else {
-                await updateDoc(roomRef, {
-                    [`players.${currentUser.uid}.hp`]: localPlayer.hp
-                });
-            }
-        }
-
-        async function collectPowerup(p) {
-            // Optimistic Remove local
-            const idx = powerups.findIndex(x => x.id === p.id);
-            if (idx === -1) return;
-            powerups.splice(idx, 1);
-            
-            showMessage(p.type === 'coffee' ? "SPEED UP!" : "HEAL!", "orange");
-            
-            if (p.type === 'coffee') {
-                // Speed boost logic (not fully implemented in this simple loop, but visual feedback ok)
-            } else {
-                localPlayer.hp = Math.min(100, localPlayer.hp + 20);
-                document.getElementById('hudHealthBar').style.width = `${localPlayer.hp}%`;
+                scoreChange = 1;
             }
 
-            // Sync Remove
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            const snap = await getDoc(roomRef);
-            if(snap.exists()) {
-                const list = snap.data().powerups || [];
-                const newList = list.filter(item => item.id !== p.id);
-                await updateDoc(roomRef, { powerups: newList });
-            }
-        }
-
-        // --- DRAWING ---
-        function draw() {
-            // Background
-            ctx.fillStyle = "#27272a"; // Zinc 800
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            // Grid
-            ctx.strokeStyle = "#3f3f46";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for(let x=0; x<=CANVAS_WIDTH; x+=100) { ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_HEIGHT); }
-            for(let y=0; y<=CANVAS_HEIGHT; y+=100) { ctx.moveTo(0,y); ctx.lineTo(CANVAS_WIDTH,y); }
-            ctx.stroke();
-
-            // Obstacles
-            ctx.shadowColor = "black";
-            ctx.shadowBlur = 10;
-            OBSTACLES.forEach(o => {
-                ctx.fillStyle = o.color;
-                ctx.fillRect(o.x, o.y, o.w, o.h);
-                // Top "Desk" look
-                ctx.fillStyle = "#6b7280";
-                ctx.fillRect(o.x+5, o.y+5, o.w-10, o.h-10);
-                // Papers
-                ctx.fillStyle = "white";
-                ctx.fillRect(o.x+15, o.y+10, 15, 20);
-            });
-            ctx.shadowBlur = 0;
-
-            // Powerups
-            powerups.forEach(p => {
-                ctx.font = "24px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText(p.type === 'coffee' ? '☕' : '🍩', p.x, p.y + 10);
+            await updateDoc(targetRef, {
+                hp: newHp,
+                isAlive: newIsAlive,
+                updatedAt: Date.now()
             });
 
-            // Bullets
-            ctx.fillStyle = "#fff";
-            bullets.forEach(b => {
+            await updateDoc(shooterRef, {
+                score: (players[shooterId].score || 0) + scoreChange,
+                updatedAt: Date.now()
+            });
+        };
+
+        const collectCoin = async (coinId, collectorId) => {
+             if (!isHost || gameState !== 'playing') return;
+
+             const coinIndex = coins.findIndex(c => c.id === coinId);
+             if (coinIndex === -1 || coins[coinIndex].collected) return;
+
+             coins[coinIndex].collected = true;
+
+             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+             const collectorRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'players', collectorId);
+             await updateDoc(collectorRef, {
+                 score: (players[collectorId].score || 0) + 5,
+                 updatedAt: Date.now()
+             });
+
+             await updateDoc(roomRef, {
+                 coins: coins,
+                 updatedAt: Date.now()
+             });
+
+             setTimeout(async () => {
+                 if (isHost && gameRoomId) {
+                      coins[coinIndex].collected = false;
+                      await updateDoc(roomRef, {
+                          coins: coins,
+                          updatedAt: Date.now()
+                      });
+                 }
+             }, 5000);
+        };
+
+
+        const fireBullet = (targetX, targetY) => {
+            const player = players[userId];
+            if (!player || gameState !== 'playing' || !player.isAlive) return;
+
+            const now = Date.now();
+            if (now - player.lastShot < 300) return;
+
+            const dx = targetX - player.x;
+            const dy = targetY - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            const vx = (dx / dist) * BULLET_SPEED;
+            const vy = (dy / dist) * BULLET_SPEED;
+
+            const newBullet = {
+                x: player.x,
+                y: player.y,
+                vx: vx,
+                vy: vy,
+                shooterId: userId,
+                id: (isHost ? bullets.length : 0) + Math.random()
+            };
+
+            bullets.push(newBullet);
+
+            updateDoc(playerRef, {
+                lastShot: now,
+                updatedAt: Date.now()
+            }).catch(e => console.error("Помилка оновлення останнього пострілу:", e));
+
+            if (!isHost) {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const bulletQueueRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'bullet_queue');
+                addDoc(bulletQueueRef, newBullet).catch(e => console.error("Помилка додавання кулі в чергу:", e));
+            }
+        };
+
+        const listenToBulletQueue = () => {
+             if (!isHost || !gameRoomId) return;
+             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+             const bulletQueueRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms', gameRoomId, 'bullet_queue');
+
+             onSnapshot(bulletQueueRef, (snapshot) => {
+                 snapshot.docChanges().forEach((change) => {
+                     if (change.type === "added") {
+                         const bulletData = change.doc.data();
+                         bullets.push({ ...bulletData, isAlive: true });
+                         deleteDoc(change.doc.ref).catch(e => console.error("Помилка видалення кулі з черги:", e));
+                     }
+                 });
+             });
+        };
+
+        const gameLoop = () => {
+            if (gameState !== 'playing') return;
+
+            const now = Date.now();
+            const delta = (now - lastUpdateTime) / FRAME_TIME;
+            lastUpdateTime = now;
+
+            updatePlayerPosition(delta);
+
+            if (isHost) {
+                 updateBullets();
+            }
+
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        };
+
+        const draw = () => {
+            if (!ctx || !canvas) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1e1e1e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = '#333';
+            for (let i = 0; i <= GRID_SIZE; i++) {
                 ctx.beginPath();
-                ctx.arc(b.x, b.y, 6, 0, Math.PI*2);
-                ctx.fill();
+                ctx.moveTo(i * TILE_SIZE, 0);
+                ctx.lineTo(i * TILE_SIZE, GRID_SIZE * TILE_SIZE);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * TILE_SIZE);
+                ctx.lineTo(GRID_SIZE * TILE_SIZE, i * TILE_SIZE);
+                ctx.stroke();
+            }
+
+            // Малювання перешкод
+            ctx.fillStyle = '#4a5568';
+            ctx.strokeStyle = '#cbd5e0';
+            obstacles.forEach(obstacle => {
+                const x = obstacle.x * TILE_SIZE;
+                const y = obstacle.y * TILE_SIZE;
+                ctx.fillRect(x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+                ctx.strokeRect(x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
             });
 
-            // Players
-            Object.values(playersMap).forEach(p => {
-                // If me, use local pos for smoothness
-                const x = (p.id === currentUser.uid) ? localPlayer.x : p.x;
-                const y = (p.id === currentUser.uid) ? localPlayer.y : p.y;
-                const hp = (p.id === currentUser.uid) ? localPlayer.hp : (p.hp || 100);
-                const angle = (p.id === currentUser.uid) ? localPlayer.angle : (p.angle || 0);
-                
-                if (hp <= 0) return; // Don't draw dead
-
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(angle);
-
-                // Body
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(0, 0, PLAYER_RADIUS, 0, Math.PI*2);
-                ctx.fill();
-                
-                // Hands (holding paper ball)
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(15, 10, 8, 0, Math.PI*2); // Right hand
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(15, -10, 8, 0, Math.PI*2); // Left hand
-                ctx.fill();
-
-                // Paper Ball (Weapon)
-                ctx.fillStyle = "white";
-                ctx.beginPath();
-                ctx.arc(20, 10, 6, 0, Math.PI*2);
-                ctx.fill();
-
-                ctx.restore();
-
-                // Name & HP Bar (above rotated context)
-                ctx.fillStyle = "white";
-                ctx.font = "bold 12px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText(p.name, x, y - 35);
-                
-                // HP Bar
-                ctx.fillStyle = "red";
-                ctx.fillRect(x - 20, y - 30, 40, 5);
-                ctx.fillStyle = "#22c55e";
-                ctx.fillRect(x - 20, y - 30, 40 * (hp/100), 5);
-            });
-
-            // Score update HUD
-            if (playersMap[currentUser.uid]) {
-                document.getElementById('hudScore').textContent = playersMap[currentUser.uid].score;
-            }
-        }
-        
-        async function finishGame(players) {
-            gameActive = false;
-            showScreen('results');
-            
-            // Find winner
-            players.sort((a,b) => b.score - a.score);
-            const winner = players[0];
-            
-            document.getElementById('winnerName').textContent = winner.name;
-            document.getElementById('winnerScore').textContent = winner.score;
-            
-            const myP = players.find(p => p.id === currentUser.uid);
-            document.getElementById('myResultScore').textContent = myP ? myP.score : 0;
-            
-            // Save permanent stats
-            if (myP) {
-                const userRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats');
-                await updateDoc(userRef, {
-                    xp: increment(myP.score * 10),
-                    wins: increment(winner.id === currentUser.uid ? 1 : 0),
-                    kills: increment(myP.score)
-                });
-            }
-        }
-
-        // --- INPUT HANDLING ---
-        // Keyboard
-        const keys = {};
-        window.addEventListener('keydown', e => { keys[e.code] = true; updateInputVector(); });
-        window.addEventListener('keyup', e => { keys[e.code] = false; updateInputVector(); });
-        
-        function updateInputVector() {
-            input.x = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
-            input.y = (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0) - (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0);
-        }
-
-        // Mouse
-        window.addEventListener('mousemove', e => {
-            input.mouseX = e.clientX;
-            input.mouseY = e.clientY;
-        });
-        window.addEventListener('mousedown', () => input.firing = true);
-        window.addEventListener('mouseup', () => input.firing = false);
-
-        // Touch / Joystick
-        const joyZone = document.getElementById('joystick-zone');
-        const joyKnob = document.getElementById('joystick-knob');
-        let joyTouchId = null;
-        let joyCenter = { x: 0, y: 0 };
-
-        joyZone.addEventListener('touchstart', e => {
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            joyTouchId = touch.identifier;
-            const rect = joyZone.getBoundingClientRect();
-            joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
-            moveJoystick(touch.clientX, touch.clientY);
-        }, {passive: false});
-
-        joyZone.addEventListener('touchmove', e => {
-            e.preventDefault();
-            for(let i=0; i<e.changedTouches.length; i++) {
-                if(e.changedTouches[i].identifier === joyTouchId) {
-                    moveJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            // Малювання монет
+            coins.forEach(coin => {
+                if (!coin.collected) {
+                    const x = coin.x * TILE_SIZE;
+                    const y = coin.y * TILE_SIZE;
+                    ctx.fillStyle = '#ffc107';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 10, 0, Math.PI * 2);
+                    ctx.fill();
                 }
+            });
+
+            // Малювання гравців
+            for (const id in players) {
+                const player = players[id];
+
+                ctx.fillStyle = player.color;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, PLAYER_SIZE / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = id === userId ? '#e53e3e' : '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name, player.x, player.y - PLAYER_SIZE / 2 - 5);
+
+                const hpBarWidth = PLAYER_SIZE;
+                const hpBarHeight = 4;
+                const hpBarX = player.x - hpBarWidth / 2;
+                const hpBarY = player.y + PLAYER_SIZE / 2 + 5;
+
+                ctx.fillStyle = '#555';
+                ctx.fillRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight);
+                const currentHpWidth = (player.hp / MAX_HP) * hpBarWidth;
+                ctx.fillStyle = player.hp > 25 ? '#48bb78' : '#e53e3e';
+                ctx.fillRect(hpBarX, hpBarY, currentHpWidth, hpBarHeight);
             }
-        }, {passive: false});
 
-        joyZone.addEventListener('touchend', e => {
-            e.preventDefault();
-            joyKnob.style.transform = `translate(-50%, -50%)`;
-            input.x = 0; input.y = 0;
-            joyTouchId = null;
-        });
+            // Малювання куль
+            ctx.fillStyle = '#f0f';
+            bullets.forEach(bullet => {
+                if (bullet.isAlive) {
+                    ctx.beginPath();
+                    ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
 
-        function moveJoystick(clientX, clientY) {
-            const dx = clientX - joyCenter.x;
-            const dy = clientY - joyCenter.y;
-            const dist = Math.min(40, Math.hypot(dx, dy));
-            const angle = Math.atan2(dy, dx);
-            
-            const kx = Math.cos(angle) * dist;
-            const ky = Math.sin(angle) * dist;
-            
-            joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-            
-            // Set input vector normalized
-            input.x = dx / 40;
-            input.y = dy / 40;
-        }
+            // Оновлення HUD
+            const myPlayer = players[userId];
+            if (myPlayer) {
+                document.getElementById('my-hp').textContent = myPlayer.hp;
+                document.getElementById('my-score').textContent = myPlayer.score;
+                document.getElementById('my-hp-bar').style.width = `${(myPlayer.hp / MAX_HP) * 100}%`;
+                document.getElementById('my-hp-bar').style.backgroundColor = myPlayer.hp > 25 ? '#48bb78' : '#e53e3e';
+            }
+        };
 
-        // Mobile Fire
-        const fireBtn = document.getElementById('mobile-fire-btn');
-        fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.firing = true; });
-        fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); input.firing = false; });
+        const updateLeaderboard = () => {
+            const board = document.getElementById('leaderboard');
+            board.innerHTML = '';
+            const sortedPlayers = Object.values(players)
+                .filter(p => !p.left)
+                .sort((a, b) => b.score - a.score);
 
+            sortedPlayers.forEach(player => {
+                const isMe = player.id === userId;
+                const listItem = document.createElement('li');
+                listItem.className = `flex justify-between items-center p-2 rounded-lg text-sm transition-colors ${isMe ? 'bg-indigo-700 font-bold' : 'hover:bg-gray-700'}`;
+                listItem.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full" style="background-color: ${player.color};"></span>
+                        <span class="${player.isAlive ? '' : 'line-through opacity-50'}">${player.name}</span>
+                        ${isMe ? '<span class="text-xs text-yellow-300">(Ви)</span>' : ''}
+                        ${player.isReady && gameState === 'lobby' ? '<span class="text-green-400 text-xs ml-2">Готовий</span>' : ''}
+                    </div>
+                    <span>${player.score} pts</span>
+                `;
+                board.appendChild(listItem);
+            });
+        };
+
+
+        // --- Обробники Подій ---
+
+        const initCanvas = () => {
+            canvas = document.getElementById('gameCanvas');
+            canvas.width = GRID_SIZE * TILE_SIZE;
+            canvas.height = GRID_SIZE * TILE_SIZE;
+            ctx = canvas.getContext('2d');
+
+            canvas.addEventListener('click', (e) => {
+                if (gameState !== 'playing' || !players[userId] || !players[userId].isAlive) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                const mouseX = (e.clientX - rect.left) * scaleX;
+                const mouseY = (e.clientY - rect.top) * scaleY;
+
+                fireBullet(mouseX, mouseY);
+            });
+
+            // Обробник дотику (мобільний)
+            let joystickCenter = { x: 0, y: 0 };
+            let joystickActive = false;
+            const JOYSTICK_RADIUS = 50;
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length > 0) {
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    const touchX = touch.clientX - rect.left;
+                    const touchY = touch.clientY - rect.top;
+
+                    if (touchX < rect.width / 3 && touchY > rect.height * 2 / 3) {
+                        joystickCenter = { x: touchX, y: touchY };
+                        joystickActive = true;
+                        handleJoystickMove(touchX, touchY, rect);
+                    } else {
+                        const scaleX = canvas.width / rect.width;
+                        const scaleY = canvas.height / rect.height;
+
+                        const targetX = touchX * scaleX;
+                        const targetY = touchY * scaleY;
+                        fireBullet(targetX, targetY);
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (joystickActive && e.touches.length > 0) {
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    const touchX = touch.clientX - rect.left;
+                    const touchY = touch.clientY - rect.top;
+                    handleJoystickMove(touchX, touchY, rect);
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (joystickActive) {
+                    joystickActive = false;
+                    inputState.up = inputState.down = inputState.left = inputState.right = false;
+                    draw();
+                }
+            }, { passive: false });
+
+
+            const handleJoystickMove = (touchX, touchY, rect) => {
+                const dx = touchX - joystickCenter.x;
+                const dy = touchY - joystickCenter.y;
+
+                const angle = Math.atan2(dy, dx);
+                const magnitude = Math.min(Math.sqrt(dx * dx + dy * dy), JOYSTICK_RADIUS);
+
+                inputState.up = Math.cos(angle - Math.PI / 2) * magnitude > 20;
+                inputState.down = Math.cos(angle + Math.PI / 2) * magnitude > 20;
+                inputState.left = Math.cos(angle - Math.PI) * magnitude > 20;
+                inputState.right = Math.cos(angle) * magnitude > 20;
+            };
+
+            // Обробник клавіатури (фікс для руху)
+            const handleKey = (event, isDown) => {
+                if (document.activeElement.tagName === 'INPUT') return;
+                if (!userId) return; // Рух тільки для авторизованих
+
+                let handled = true;
+                switch (event.key.toUpperCase()) {
+                    case 'W':
+                    case 'Ц':
+                    case 'ARROWUP':
+                        inputState.up = isDown;
+                        break;
+                    case 'S':
+                    case 'І':
+                    case 'ARROWDOWN':
+                        inputState.down = isDown;
+                        break;
+                    case 'A':
+                    case 'Ф':
+                    case 'ARROWLEFT':
+                        inputState.left = isDown;
+                        break;
+                    case 'D':
+                    case 'В':
+                    case 'ARROWRIGHT':
+                        inputState.right = isDown;
+                        break;
+                    default:
+                        handled = false;
+                }
+
+                if (handled && gameState === 'playing') {
+                    event.preventDefault();
+                    if (isDown && !gameTimerInterval) {
+                        lastUpdateTime = Date.now();
+                        requestAnimationFrame(gameLoop);
+                    }
+                }
+            };
+
+            document.addEventListener('keydown', (e) => handleKey(e, true));
+            document.addEventListener('keyup', (e) => handleKey(e, false));
+        };
+
+        const updateUserName = async () => {
+             const inputElement = document.getElementById('user-name-input');
+             const newName = inputElement.value.trim();
+             if (!userId || !userProfileRef) {
+                 document.getElementById('game-status').textContent = "Будь ласка, увійдіть, щоб змінити ім'я.";
+                 inputElement.value = userName;
+                 return;
+             }
+
+             if (newName && newName.length <= 15) {
+                 userName = newName;
+                 // Оновлення постійного профілю
+                 await updateDoc(userProfileRef, { name: userName }).catch(e => console.error("Помилка оновлення імені:", e));
+
+                 // Оновлення поточного гравця, якщо він у кімнаті
+                 if (playerRef) {
+                     updateDoc(playerRef, { name: userName }).catch(e => console.error("Помилка оновлення імені в кімнаті:", e));
+                 }
+                 document.getElementById('game-status').textContent = `Ім'я змінено на: ${userName}`;
+             } else {
+                 document.getElementById('game-status').textContent = "Ім'я має бути від 1 до 15 символів.";
+                 inputElement.value = userName;
+             }
+        };
+
+
+        // --- Запуск ---
+        window.onload = () => {
+            initCanvas();
+            initializeFirebase().then(() => {
+                if (isHost) {
+                    listenToBulletQueue();
+                }
+                draw();
+            });
+
+            // Підключення кнопок до функцій
+            document.getElementById('create-game-btn').addEventListener('click', createGame);
+            document.getElementById('join-game-btn').addEventListener('click', joinGame);
+            document.getElementById('start-game-btn').addEventListener('click', startGame);
+            document.getElementById('leave-game-btn').addEventListener('click', leaveGame);
+            document.getElementById('user-name-input').addEventListener('blur', updateUserName);
+            document.getElementById('user-name-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') updateUserName();
+            });
+            document.getElementById('ready-toggle-btn').addEventListener('click', toggleReady);
+            document.getElementById('google-sign-in-btn').addEventListener('click', signInWithGoogle); // Нова кнопка Google Sign-In
+            document.getElementById('logout-btn').addEventListener('click', handleSignOut); // Нова кнопка Виходу
+
+            const resizeCanvas = () => {
+                const container = document.getElementById('canvas-container');
+                const size = Math.min(container.clientWidth, window.innerHeight - 350);
+                canvas.style.width = `${size}px`;
+                canvas.style.height = `${size}px`;
+            };
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+        };
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; }
+        #gameCanvas {
+            background-color: #2d3748;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+            touch-action: none;
+            max-width: 100%;
+            height: auto;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            box-shadow: 0 4px #1a202c;
+            transform: translateY(0);
+        }
+        .btn:hover {
+            opacity: 0.9;
+            box-shadow: 0 6px #1a202c;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #1a202c;
+        }
+        .btn-primary { background-color: #4c51bf; color: #fff; }
+        .btn-secondary { background-color: #38a169; color: #fff; }
+        .btn-danger { background-color: #e53e3e; color: #fff; }
+        .btn-disabled { background-color: #a0aec0; color: #718096; cursor: not-allowed; box-shadow: none; transform: translateY(0); }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <header class="w-full max-w-4xl mb-6">
+        <h1 class="text-4xl font-extrabold text-indigo-400 text-center">Офісний Бій: Mayhem 💥</h1>
+        <p id="game-status" class="text-sm text-center text-gray-400 mt-2">Очікування авторизації...</p>
+    </header>
+
+    <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Ліва Панель: Статус та Лобі -->
+        <div class="md:col-span-1 space-y-4">
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-indigo-300 mb-2">Мій Статус</h2>
+                <p id="auth-status" class="text-sm text-red-400 mb-2">Не увійшов.</p>
+                <div class="flex items-center justify-between text-lg">
+                    <span>HP:</span>
+                    <span id="my-hp" class="font-mono text-green-400">100</span>
+                </div>
+                <div class="w-full bg-gray-600 rounded-full h-2.5 mt-1">
+                    <div id="my-hp-bar" class="h-2.5 rounded-full" style="width: 100%; background-color: #48bb78;"></div>
+                </div>
+                <div class="flex items-center justify-between mt-2 text-lg">
+                    <span>Рахунок:</span>
+                    <span id="my-score" class="font-mono text-yellow-400">0</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-2">
+                    Кімната: <span id="room-id-display" class="font-mono text-sm"> — </span>
+                    <br>
+                    <span id="user-id-display" class="font-mono text-xs hidden"></span>
+                </div>
+            </div>
+
+            <!-- Керування автентифікацією -->
+            <div id="auth-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3">
+                 <button id="google-sign-in-btn" class="btn w-full flex items-center justify-center bg-white text-gray-800 hover:bg-gray-200">
+                    <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.0003 4.6062C14.7937 4.6062 16.7118 5.766 17.6569 6.6713L20.301 3.999C18.6833 2.508 16.2979 1.666 12.0003 1.666C7.05267 1.666 2.76672 3.5262 0.817383 6.6475V6.6479H8.79092C9.28912 6.6479 9.69971 7.05849 9.69971 7.55669C9.69971 8.05489 9.28912 8.46548 8.79092 8.46548H2.89966C2.39958 10.3258 2.39958 12.6074 2.89966 14.4678H8.79092C9.28912 14.4678 9.69971 14.8784 9.69971 15.3766C9.69971 15.8748 9.28912 16.2854 8.79092 16.2854H0.817383C2.76672 19.4067 7.05267 21.267 12.0003 21.267C16.2979 21.267 18.6833 20.425 20.301 18.934L17.6569 16.2618C16.7118 17.1671 14.7937 18.3269 12.0003 18.3269C9.09635 18.3269 6.55174 17.068 5.09347 15.1508C5.0768 15.1091 5.05193 15.0601 5.03478 15.0205C5.01831 14.9808 5.00003 14.9412 4.98687 14.9015C4.8465 14.5447 4.80003 14.0772 4.80003 13.5668C4.80003 13.0564 4.8465 12.5889 4.98687 12.2321C5.00003 12.1924 5.01831 12.1528 5.03478 12.1132C5.05193 12.0735 5.0768 12.0245 5.09347 11.9828C6.55174 10.0656 9.09635 8.80669 12.0003 8.80669C13.8863 8.80669 15.1963 9.49721 16.0968 10.3662L17.7537 8.65349C16.4805 7.42062 14.6648 6.6479 12.0003 6.6479C9.28912 6.6479 7.05267 7.6439 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724C5.86794 9.1724 5.86794 9.1724 5.86794 9.1724Z" fill="currentColor"/>
+                    </svg>
+                    Увійти через Google
+                 </button>
+            </div>
+             <button id="logout-btn" class="btn btn-danger w-full hidden">
+                Вийти з Профілю
+            </button>
+
+
+            <!-- Введення Імені -->
+            <div id="name-entry" class="bg-gray-800 p-4 rounded-xl shadow-lg">
+                <label for="user-name-input" class="block text-sm font-medium text-gray-300 mb-2">Ваше Ігрове Ім'я (до 15 симв.):</label>
+                <input type="text" id="user-name-input" class="w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-white" maxlength="15" value="AnonymousPlayer">
+            </div>
+
+            <!-- Керування Лобі -->
+            <div id="lobby-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3">
+                <button id="create-game-btn" class="btn btn-secondary w-full">
+                    Створити Нову Гру
+                </button>
+                <div class="flex space-x-2">
+                    <input type="text" id="join-room-id" placeholder="ID кімнати" class="flex-grow p-2 rounded bg-gray-700 border border-gray-600 text-white text-center" maxlength="8">
+                    <button id="join-game-btn" class="btn btn-primary">
+                        Приєднатися
+                    </button>
+                </div>
+            </div>
+
+            <!-- Керування Грою -->
+            <div id="game-controls" class="bg-gray-800 p-4 rounded-xl shadow-lg space-y-3 hidden">
+                <button id="ready-toggle-btn" class="btn btn-secondary w-full">
+                    Готовий (Немає)
+                </button>
+                <button id="start-game-btn" class="btn btn-primary w-full hidden" disabled>
+                    Готові: 0/0 (Потрібно ≥2)
+                </button>
+                <button id="leave-game-btn" class="btn btn-danger w-full hidden">
+                    Вийти з Гри
+                </button>
+            </div>
+
+             <!-- Інструкції -->
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg text-sm">
+                <h3 class="font-bold text-gray-300 mb-2">Як Грати:</h3>
+                <ul class="list-disc list-inside space-y-1 text-gray-400">
+                    <li>🕹️ **Рух:** **WASD** або **Стрілки** (На мобільному: лівий нижній кут).</li>
+                    <li>💥 **Стрільба:** **Клік миші** або **Дотик** (за межами зони джойстика).</li>
+                    <li>💰 **Очки:** Збирайте монети (+5) та вбивайте суперників (+10).</li>
+                    <li>🛡️ **Стіни:** Перешкоди блокують рух і постріли.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Центральна Панель: Ігрове Полотно -->
+        <div id="canvas-container" class="md:col-span-2 flex justify-center items-center min-h-[400px]">
+            <canvas id="gameCanvas" class="w-full aspect-square"></canvas>
+        </div>
+
+        <!-- Права Панель: Таблиця Лідерів -->
+        <div class="md:col-span-3 lg:col-span-1">
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-yellow-400">Табло Лідерів</h2>
+                    <div class="text-lg font-mono text-red-400">
+                        <span id="timer-display">01:30</span>
+                    </div>
+                </div>
+                <ul id="leaderboard" class="space-y-2">
+                    <li class="text-gray-500 text-center p-4">Увійдіть та приєднайтесь до гри.</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <footer class="mt-8 text-xs text-gray-500 text-center">
+        Office Mayhem (v1.2) | Постійні профілі через Google Sign-In та Google Firestore.
+    </footer>
 </body>
 </html>
