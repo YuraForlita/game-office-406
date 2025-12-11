@@ -6,174 +6,130 @@
     <title>Office Mayhem: Багатокористувацький Шутер</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
-        // Імпорти Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { 
+    getAuth,
+    onAuthStateChanged,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    signInAnonymously
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { 
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc,
+    setLogLevel
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Глобальні змінні
-        let app;
-        let db;
-        let auth;
-        let userId = null; // Початково null, поки користувач не увійде
-        let userName = 'AnonymousPlayer';
-        let gameRoomId = null;
-        let playerRef = null;
-        let roomRef = null;
-        let userProfileRef = null; // Нова посилання на постійний профіль
-        let isHost = false;
-        let players = {};
-        let gameState = 'lobby'; // 'lobby', 'playing', 'finished'
-        let bullets = [];
-        let canvas, ctx;
-        let lastUpdateTime = 0;
-        const FPS = 60;
-        const FRAME_TIME = 1000 / FPS;
+// --- Глобальні Firebase змінні ---
+let app, db, auth;
+let userId = null;
+let userName = "AnonymousPlayer";
+let userProfileRef = null;
 
-        // Конфігурація гри
-        const GRID_SIZE = 5;
-        const TILE_SIZE = 100;
-        const PLAYER_SIZE = 30;
-        const BULLET_SPEED = 10;
-        const PLAYER_SPEED = 5;
-        const MAX_HP = 100;
-        const GAME_DURATION_SECONDS = 90;
-        let timeRemaining = GAME_DURATION_SECONDS;
+// --- Чистий Firebase Config без Canvas ---
+const firebaseConfig = {
+    apiKey: "AIzaSyAqOKy-am1nyiavsIiknhZh2Vyq0crGYHA",
+    authDomain: "game-office-406.firebaseapp.com",
+    projectId: "game-office-406",
+    storageBucket: "game-office-406.appspot.com",   // <-- Виправлено
+    messagingSenderId: "662530550810",
+    appId: "1:662530550810:web:753eccc327843761c035a3",
+    measurementId: "G-LYPY42C873"
+};
 
-        // Об'єкти на карті (перешкоди та монети)
-        const obstacles = [
-            { x: 1, y: 1, type: 'table' },
-            { x: 3, y: 1, type: 'table' },
-            { x: 1, y: 3, type: 'table' },
-            { x: 3, y: 3, type: 'table' }
-        ];
+// --- Ініціалізація Firebase ---
+const initializeFirebase = async () => {
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        setLogLevel("error");
 
-        let coins = [
-            { id: 'coin1', x: 0.5, y: 0.5, collected: false },
-            { id: 'coin2', x: 4.5, y: 0.5, collected: false },
-            { id: 'coin3', x: 0.5, y: 4.5, collected: false },
-            { id: 'coin4', x: 4.5, y: 4.5, collected: false }
-        ];
+        // Входимо анонімно, якщо користувач не увійшов
+        await signInAnonymously(auth);
 
-        // Керування рухом
-        const inputState = {
-            up: false,
-            down: false,
-            left: false,
-            right: false
-        };
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
 
-        // --- Firebase та Ініціалізація ---
+                // Тепер профілі будуть зберігатися в:
+                // users/{userId}/profile/data
+                userProfileRef = doc(db, "users", userId, "profile", "data");
 
-        const initializeFirebase = async () => {
-            try {
-                // Використовуємо ID програми Canvas для шляхів Firestore.
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                document.getElementById("user-id-display").textContent = `ID: ${userId}`;
+                document.getElementById("auth-status").textContent = `Увійшов як: ${user.email || "Гість"}`;
+                document.getElementById("auth-status").classList.add("text-green-400");
+                document.getElementById("auth-status").classList.remove("text-red-400");
 
-                // ВИПРАВЛЕНО: Використовуємо конфігурацію Firebase, надану середовищем Canvas.
-                const firebaseConfig = {
-                apiKey: "AIzaSyAqOKy-am1nyiavsIiknhZh2Vyq0crGYHA",
-                authDomain: "game-office-406.firebaseapp.com",
-                projectId: "game-office-406",
-                storageBucket: "game-office-406.firebasestorage.app",
-                messagingSenderId: "662530550810",
-                appId: "1:662530550810:web:753eccc327843761c035a3",
-                measurementId: "G-LYPY42C873"
-                };
+                document.getElementById("auth-controls").classList.add("hidden");
+                document.getElementById("logout-btn").classList.remove("hidden");
 
-                if (!firebaseConfig.apiKey || Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase config is missing or invalid. Cannot initialize.");
-                    document.getElementById('game-status').textContent = "Помилка: Конфігурація Firebase недоступна. Неможливо ініціалізувати.";
-                    return;
-                }
-
-                // Ініціалізація
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                setLogLevel('error');
-
-                // Початкова авторизація через токен (для середовища Canvas)
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    // Якщо Canvas не надав токен, входимо анонімно
-                    await signInAnonymously(auth);
-                }
-
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        // Слідкуємо, щоб використовувався appId Canvas для безпечного шляху
-                        userProfileRef = doc(db, 'artifacts', appId, 'users', userId, 'user_profile', 'data');
-                        document.getElementById('user-id-display').textContent = `ID: ${userId}`;
-                        document.getElementById('auth-status').textContent = `Увійшов як: ${user.email || 'Користувач'}`;
-                        document.getElementById('auth-status').classList.remove('text-red-400');
-                        document.getElementById('auth-status').classList.add('text-green-400');
-                        document.getElementById('auth-controls').classList.add('hidden'); // Приховати кнопки входу/виходу
-                        document.getElementById('logout-btn').classList.remove('hidden');
-                        
-                        // Очистити загальний статус після успішного входу
-                        document.getElementById('game-status').textContent = "Авторизація успішна. Готовність до гри.";
-
-                        // Завантаження або створення постійного профілю
-                        await loadOrCreateUserProfile(user.displayName);
-
-                    } else {
-                        userId = null;
-                        userName = 'AnonymousPlayer';
-                        document.getElementById('auth-status').textContent = "Не увійшов. Увійдіть для збереження прогресу.";
-                        document.getElementById('auth-status').classList.remove('text-green-400');
-                        document.getElementById('auth-status').classList.add('text-red-400');
-                        document.getElementById('auth-controls').classList.remove('hidden');
-                        document.getElementById('logout-btn').classList.add('hidden');
-                        document.getElementById('user-name-input').value = userName;
-                        document.getElementById('game-status').textContent = "Очікування входу.";
-                        resetGameUI(); // Скидання інтерфейсу, якщо користувач вийшов
-                    }
-                });
-            } catch (error) {
-                console.error("Помилка ініціалізації Firebase:", error);
-                document.getElementById('game-status').textContent = `Помилка ініціалізації: ${error.message}`;
-            }
-        };
-
-        const loadOrCreateUserProfile = async (googleDisplayName) => {
-            if (!userId || !userProfileRef) return;
-
-            const profileSnap = await getDoc(userProfileRef);
-
-            if (profileSnap.exists()) {
-                const profile = profileSnap.data();
-                userName = profile.name || googleDisplayName || `Player${Math.floor(Math.random() * 900) + 100}`;
-                // Тут можна завантажити highscore, якщо він є
-                document.getElementById('user-name-input').value = userName;
+                await loadOrCreateUserProfile(user.displayName);
+                document.getElementById("game-status").textContent = "Авторизація успішна. Готовність до гри.";
             } else {
-                // Створення нового профілю
-                userName = googleDisplayName || `Player${Math.floor(Math.random() * 900) + 100}`;
-                await setDoc(userProfileRef, {
-                    name: userName,
-                    createdAt: Date.now(),
-                    highScore: 0,
-                });
-                document.getElementById('user-name-input').value = userName;
-            }
-        };
+                userId = null;
+                userName = "AnonymousPlayer";
 
-        const signInWithGoogle = async () => {
-            const provider = new GoogleAuthProvider();
-            try {
-                // onAuthStateChanged обробить подальше оновлення UI
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error("Помилка входу через Google:", error);
-                // Повідомляємо користувача про ймовірну причину
-                document.getElementById('game-status').textContent = `Помилка входу: ${error.message}. Спробуйте ще раз або перевірте налаштування браузера щодо спливаючих вікон (це поширено у вбудованих вікнах).`;
+                document.getElementById("auth-status").textContent = "Не увійшов.";
+                document.getElementById("auth-status").classList.add("text-red-400");
+                document.getElementById("auth-status").classList.remove("text-green-400");
+
+                document.getElementById("auth-controls").classList.remove("hidden");
+                document.getElementById("logout-btn").classList.add("hidden");
+
+                document.getElementById("user-name-input").value = userName;
+                document.getElementById("game-status").textContent = "Очікування входу.";
+
+                resetGameUI?.();
             }
-        };
+        });
+
+    } catch (error) {
+        console.error("Помилка ініціалізації Firebase:", error);
+        document.getElementById("game-status").textContent = `Помилка ініціалізації: ${error.message}`;
+    }
+};
+
+// --- Створення / завантаження профілю ---
+const loadOrCreateUserProfile = async (googleName) => {
+    if (!userId || !userProfileRef) return;
+
+    const snap = await getDoc(userProfileRef);
+
+    if (snap.exists()) {
+        const data = snap.data();
+        userName = data.name || googleName || `Player${Math.floor(Math.random() * 900) + 100}`;
+    } else {
+        userName = googleName || `Player${Math.floor(Math.random() * 900) + 100}`;
+        await setDoc(userProfileRef, {
+            name: userName,
+            createdAt: Date.now(),
+            highScore: 0,
+        });
+    }
+
+    document.getElementById("user-name-input").value = userName;
+};
+
+// --- Вхід через Google ---
+const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+    } catch (error) {
+        console.error("Google login error:", error);
+        document.getElementById("game-status").textContent =
+            `Помилка входу: ${error.message}`;
+    }
+};
+
+// --- Вихід ---
+const logoutUser = async () => {
+    await signOut(auth);
+};
 
         const handleSignOut = async () => {
              try {
