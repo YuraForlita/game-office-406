@@ -222,8 +222,15 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- INIT ---
-        const firebaseConfig = JSON.parse(__firebase_config || '{}');
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyBu9M5MDiaWJWJXFtoOpK--KZXKRtTFZt0",
+            authDomain: "planer-97eb1.firebaseapp.com",
+            projectId: "planer-97eb1",
+            storageBucket: "planer-97eb1.firebasestorage.app",
+            messagingSenderId: "322073132266",
+            appId: "1:322073132266:web:2a1e39b188d7567a31ab93",
+            measurementId: "G-9304LH3F99"
+        };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-office-brawl';
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
