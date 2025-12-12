@@ -324,20 +324,19 @@
             }
         });
 
-        const playersColRef = collection(db, 'rooms', gameRoomId, 'players');
+const playersColRef = collection(db, 'rooms', gameRoomId, 'players');
 
 stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
     const newPlayers = {};
 
     snapshot.forEach((doc) => {
         const player = doc.data();
-
         if (!player.left) {
             newPlayers[player.id] = player;
         }
     });
 
-    players = newPlayers;  // ← повне оновлення
+    players = newPlayers; // ← важливо, ПОВНЕ ОНОВЛЕННЯ
     updateLeaderboard();
     draw();
 });
@@ -674,26 +673,56 @@ stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
     };
 
     const updateLeaderboard = () => {
-        const board = document.getElementById('leaderboard');
-        board.innerHTML = '';
-        const sorted = Object.values(players).filter(p=>!p.left).sort((a,b)=>b.score - a.score);
-        if (sorted.length === 0) {
-            board.innerHTML = `<li class="text-gray-500 text-center p-4">Увійдіть та приєднайтесь до гри.</li>`;
-            return;
-        }
-        sorted.forEach(p=>{
-            const isMe = p.id === userId;
-            const li = document.createElement('li');
-            li.className = `flex justify-between items-center p-2 rounded-lg text-sm ${isMe ? 'bg-indigo-700 font-bold' : 'hover:bg-gray-700'}`;
-            li.innerHTML = `<div class="flex items-center space-x-2">
+    const board = document.getElementById('leaderboard');
+    board.innerHTML = '';
+
+    const sorted = Object.values(players)
+        .filter(p => !p.left)
+        .sort((a, b) => b.score - a.score);
+
+    if (sorted.length === 0) {
+        board.innerHTML = `<li class="text-gray-500 text-center p-4">Увійдіть та приєднайтесь до гри.</li>`;
+        return;
+    }
+
+    // рендер гравців
+    sorted.forEach(p => {
+        const isMe = p.id === userId;
+        const li = document.createElement('li');
+        li.className =
+            `flex justify-between items-center p-2 rounded-lg text-sm ` +
+            `${isMe ? 'bg-indigo-700 font-bold' : 'hover:bg-gray-700'}`;
+
+        li.innerHTML = `
+            <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full" style="background-color: ${p.color};"></span>
                 <span class="${p.isAlive ? '' : 'line-through opacity-50'}">${p.name}</span>
                 ${isMe ? '<span class="text-xs text-yellow-300">(Ви)</span>' : ''}
-                ${p.isReady && gameState === 'lobby' ? '<span class="text-green-400 text-xs ml-2">Готовий</span>' : ''}
-            </div><span>${p.score} pts</span>`;
-            board.appendChild(li);
-        });
-    };
+                ${p.isReady && gameState === 'lobby'
+                    ? '<span class="text-green-400 text-xs ml-2">Готовий</span>'
+                    : ''}
+            </div>
+            <span>${p.score} pts</span>
+        `;
+
+        board.appendChild(li);
+    });
+
+    // ---- ДОДАНО: логіка кнопки "Старт гри" ----
+    if (isHost && gameState === 'lobby') {
+        const total = sorted.length;
+        const ready = sorted.filter(p => p.isReady && p.isAlive && !p.left).length;
+
+        const btn = document.getElementById("start-game-btn");
+
+        btn.textContent = `Старт гри (${ready}/${total})`;
+
+        // вмикаємо кнопку тільки якщо:
+        // - мінімум 2 гравці
+        // - всі готові
+        btn.disabled = !(total >= 2 && ready === total);
+    }
+};
 
     // --- UI / input handlers ---
     const initCanvas = () => {
