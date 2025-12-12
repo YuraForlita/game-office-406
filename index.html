@@ -295,34 +295,43 @@
     const listenToRoom = () => {
         if (!gameRoomId) return;
         stopListeningRoom = onSnapshot(roomRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const roomData = docSnap.data();
-                if (roomData.gameState === 'playing' && isHost) {
-                    // host може стартувати таймер
-                    startGameTimer();
-                }
+    if (!docSnap.exists()) {
+        document.getElementById('game-status').textContent = "Кімната гри була видалена.";
+        resetGameUI();
+        return;
+    }
 
-                // Оновлення стану з кімнати
-                // якщо хост надсилає coins/bullets/timer
-                if (roomData.coins) coins = roomData.coins;
-                bullets = roomData.bullets || bullets;
-                timeRemaining = roomData.timer || timeRemaining;
-                gameState = roomData.gameState || 'lobby';
+    const roomData = docSnap.data();
 
-                const minutes = Math.floor(timeRemaining / 60);
-                const seconds = timeRemaining % 60;
-                document.getElementById('timer-display').textContent = `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+    // ---- ОНОВЛЮЄМО СТАН ВІДРАЗУ ----
+    gameState = roomData.gameState || 'lobby';
+    timeRemaining = roomData.timer ?? timeRemaining;
+    if (roomData.coins) coins = roomData.coins;
+    bullets = roomData.bullets || bullets;
 
-                if (gameState === 'finished') {
-                    document.getElementById('game-status').textContent = 'Гра завершена! Перегляньте результати.';
-                    clearInterval(gameTimerInterval);
-                    updateHighScore();
-                }
-            } else {
-                document.getElementById('game-status').textContent = "Кімната гри була видалена.";
-                resetGameUI();
-            }
-        });
+    // ---- ТЕПЕР МОЖНА РЕАГУВАТИ ----
+    if (gameState === 'playing') {
+        lastUpdateTime = Date.now();
+        requestAnimationFrame(gameLoop);
+
+        if (isHost) {
+            startGameTimer();
+        }
+    }
+
+    if (gameState === 'finished') {
+        document.getElementById('game-status').textContent =
+            'Гра завершена! Перегляньте результати.';
+        clearInterval(gameTimerInterval);
+        updateHighScore();
+    }
+
+    // ---- ОНОВЛЕННЯ ТАЙМЕРА В UI ----
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    document.getElementById('timer-display').textContent =
+        `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+});
 
 const playersColRef = collection(db, 'rooms', gameRoomId, 'players');
 
