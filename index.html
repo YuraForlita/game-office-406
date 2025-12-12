@@ -325,18 +325,22 @@
         });
 
         const playersColRef = collection(db, 'rooms', gameRoomId, 'players');
-        stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                const player = change.doc.data();
-                if (player.left) {
-                    delete players[player.id];
-                } else {
-                    players[player.id] = player;
-                }
-            });
-            updateLeaderboard();
-            draw();
-        });
+
+stopListeningPlayers = onSnapshot(playersColRef, (snapshot) => {
+    const newPlayers = {};
+
+    snapshot.forEach((doc) => {
+        const player = doc.data();
+
+        if (!player.left) {
+            newPlayers[player.id] = player;
+        }
+    });
+
+    players = newPlayers;  // ← повне оновлення
+    updateLeaderboard();
+    draw();
+});
     };
 
     // --- High score оновлення ---
